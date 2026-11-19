@@ -102,7 +102,7 @@ Standard GPX waypoint fields written when available:
 - `@lat`, `@lon`
 - `<name>`: footprint title
 - `<desc>`: footprint text
-- `<ele>`: altitude from popup metadata (not track elevation)
+- `<ele>`: footprint altitude when available; otherwise the nearest track point's elevation, if available
 - `<link href="...">`: footprint URL
 - `<time>`: nearest trackpoint time if a route track exists
 
@@ -120,7 +120,7 @@ Waypoint extensions (`<wpt><extensions>`) may include:
 - repeated `<reference>` elements, each containing an optional `<search>` and a `<url>`
 - repeated `<photo>` with local file path
 - repeated `<video>`, `<gpx>` and `<pdf>` for downloaded media and attachments
-- `<point lat="..." lon="..."/>` (nearest route point, custom extension)
+- `<point lat="..." lon="..." ele="..."/>` (nearest route point, custom extension; `ele` is omitted when unavailable)
 
 ## 2.3 Track Elements (`trk`)
 
@@ -129,8 +129,7 @@ Behavior:
 - FindPenguins preserves the track data from its downloaded travel-route GPX. Polarsteps seeds
   tracks from tracker points or encoded route segments.
 - Existing `trk` nodes are temporarily removed during waypoint rebuild and appended back unchanged (except elevation enrichment).
-- FindPenguins `trkpt` may receive or update `<ele>` from OpenTopoData SRTM90m. Polarsteps
-  does not request elevation enrichment.
+- Track points from either scraper may receive or update `<ele>` from OpenTopoData SRTM90m.
 
 ## 3) Ordering Rules in GPX
 

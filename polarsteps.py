@@ -18,7 +18,7 @@ from playwright.sync_api import Error as PlaywrightError, sync_playwright
 
 from common_config import GPX_NS, XSI_NS
 from common_profiles import DEFAULT_SETTINGS, load_profiles
-from common_utils import gpx_tag
+from common_utils import country_flag, download_country_flags, gpx_tag
 from common_archive import _write_json, write_profile, write_trip
 from common_writers import build_merged_xml, build_trip_gpx, build_user_xml, save_trip_route_map
 from output_safety import clear_folders, validate_component
@@ -26,6 +26,18 @@ from output_safety import clear_folders, validate_component
 API_URL = "https://api.polarsteps.com"
 SITE_URL = "https://www.polarsteps.com"
 API_VERSION = "62"
+WEATHER_ICONS = {
+    "clear-day": "☀️",
+    "clear-night": "🌙",
+    "partly-cloudy-day": "⛅",
+    "partly-cloudy-night": "🌙☁️",
+    "cloudy": "☁️",
+    "rain": "🌧",
+    "sleet": "🌨️",
+    "snow": "❄️",
+    "wind": "🌬",
+    "fog": "🌫️",
+}
 
 
 def _restrict_login_requests(route):
@@ -363,8 +375,31 @@ def _require_list(data, *names):
     raise ValueError(f"Polarsteps response is missing {' or '.join(names)}")
 
 
-def normalize_trip(source, username, slug, profile_dir, skip):
-    """Map API trip and step data into the shared archive schema, downloading media.
+def weather_icon(condition):
+    """Convert known Polarsteps weather codes to icons, preserving unknown values."""
+    if condition is None or condition == "":
+        return ""
+    if isinstance(condition, str) and condition in WEATHER_ICONS:
+        return WEATHER_ICONS[condition]
+    print(f"  WARNING: unknown Polarsteps weather condition: {condition!r}")
+    return condition
+
+
+def _stringify_trip_numbers(value):
+    """Convert numeric trip data to strings without changing booleans or container shape."""
+    if isinstance(value, dict):
+        return {key: _stringify_trip_numbers(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_stringify_trip_numbers(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_stringify_trip_numbers(item) for item in value)
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return str(value)
+    return value
+
+
+def normalize_trip(source, username, slug, profile_dir, skip, country_codes=None):
+    """Map API trip and type-1 step data into the shared archive schema, downloading media.
 
     Skip mode requires the media to have been archived already.
     """
@@ -392,16 +427,17 @@ def normalize_trip(source, username, slug, profile_dir, skip):
         trip["image"] = os.path.relpath(download_media(cover, trip_dir, "cover_trip", "photo", skip), profile_dir)
     countries = set()
     for step in _require_list(source, "all_steps", "steps"):
-        if step.get("is_deleted"):
+        if step.get("is_deleted") or step.get("type") != 1:
             continue
         location = step.get("location") or {}
         coords = _coordinates(location)
         day = local_date(step.get("start_time"), step.get("timezone_id") or source.get("timezone_id"))
         end_day = local_date(step.get("end_time"), step.get("timezone_id") or source.get("timezone_id"))
         country = location.get("country") or ""
+        flag = country_flag(country, country_codes, location.get("country_code"))
         if country and country not in countries:
             countries.add(country)
-            trip["countries"].append({"name": country, "flag": ""})
+            trip["countries"].append({"name": country, "flag": flag})
         step_id = str(step["id"])
         validate_component(step_id)
         text, references = description_text(step.get("description"))
@@ -409,8 +445,8 @@ def normalize_trip(source, username, slug, profile_dir, skip):
             "title": step.get("name") or step.get("display_name") or location.get("name") or f"Step {step_id}",
             "text": text, "date": day,
             "lat": coords[0] if coords else "", "lon": coords[1] if coords else "",
-            "city": location.get("locality") or "", "country": country,
-            "weather": step.get("weather_condition") or "",
+            "city": location.get("locality") or "", "country": country, "flag": flag,
+            "weather": weather_icon(step.get("weather_condition")),
             "temperature": step.get("weather_temperature") if step.get("weather_temperature") is not None else "",
             "overnights": max(0, (datetime.fromisoformat(end_day) - datetime.fromisoformat(day)).days) if day and end_day else "",
             "photos": [], "videos": [], "gpx": [], "pdf": [], "references": references,
@@ -446,7 +482,8 @@ def scrape(username, output="output", trip_slug=None, skip=False, credentials=No
 
     `username` identifies the profile to archive; optional `credentials` is a
     login username/password pair. Without credentials, login is interactive.
-    Skip mode reads snapshots and existing media without login or network access.
+    Skip mode reads snapshots and existing media without login; elevation
+    enrichment may still access the network.
     `sizes` overrides the shared manifest size settings.
     """
     validate_component(username)
@@ -476,6 +513,7 @@ def scrape(username, output="output", trip_slug=None, skip=False, credentials=No
         selected = [(item, slug) for item, slug in zip(entries, slugs) if not trip_slug or slug == trip_slug]
         if trip_slug and not selected:
             raise ValueError(f"Trip not found: {trip_slug}")
+        country_codes = download_country_flags(root, skip=skip)
         user = {
             "uid": username,
             "name": " ".join(filter(None, (profile.get("first_name"), profile.get("last_name")))) or username,
@@ -503,16 +541,16 @@ def scrape(username, output="output", trip_slug=None, skip=False, credentials=No
             source = source_data(trip_dir / "api-trip.json", skip, lambda: api_get(session, "/trips/" + trip_id))
             if str(source.get("id")) != trip_id:
                 raise ValueError(f"Polarsteps trip ID mismatch for {slug}")
-            trip = normalize_trip(source, username, slug, profile_dir, skip)
+            trip = normalize_trip(source, username, slug, profile_dir, skip, country_codes)
             gpx = profile_dir / (slug + ".gpx")
             if gpx.is_symlink():
                 raise ValueError(f"Refusing symbolic-link GPX file: {gpx}")
             seed_gpx(gpx, source)
-            build_trip_gpx(str(gpx), user, trip, trip["footprints"], enrich_elevation=False)
+            build_trip_gpx(str(gpx), user, trip, trip["footprints"], enrich_elevation=True)
             route_map = save_trip_route_map(str(gpx), trip["footprints"], str(trip_dir / "map_trip.png"))
             if route_map:
                 trip["route_map"] = os.path.relpath(route_map, profile_dir)
-            write_trip(str(root), str(trip_dir), trip)
+            write_trip(str(root), str(trip_dir), _stringify_trip_numbers(trip))
             trips.append(trip)
         xml = profile_dir / (username + ".xml")
         if xml.is_symlink():

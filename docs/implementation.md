@@ -46,8 +46,9 @@ Image size settings are recorded in both services' profile manifests for the con
 3. `parse_profile` and `parse_trips` load profile metadata and the selected trip list.
 4. For each trip, `parse_trip` loads all footprint pages and downloads route GPX and media.
    `parse_trip_insights` extracts trip description, countries, distances, transports and current
-   trip companions; `parse_trip_image` finds the trip cover image. Country and footprint flag
-   URLs are downloaded to `<output>/flags/`, cached by URL, and referenced relative to the output root.
+   trip companions; `parse_trip_image` finds the trip cover image. Country and footprint flags
+   are resolved from the shared FlagCDN cache using codes in FindPenguins flag URLs or country names;
+   the source flag images are not downloaded.
 5. `build_trip_gpx` preserves the downloaded track, rebuilds coordinate-bearing waypoints, writes
    trip and footprint extensions, and enriches track-point elevations.
 6. Route maps are generated after the final GPX update when it contains a valid track.
@@ -69,16 +70,26 @@ failures are reported as warnings and do not invalidate an otherwise successful 
 3. API v62 responses from `/users/byusername/<id>` and `/trips/<trip-id>` are saved as
    `<output>/<id>/api-user.json` and `<output>/<id>/<slug>/api-trip.json`. Protect these snapshots
    as private data. Trip slugs start with the numeric ID, for example `42-adventure`.
-4. The scraper maps steps and available media into the shared schema. Photos become lossless WebP;
+4. The scraper maps nondeleted steps with `type` equal to `1` and their available media into the
+   shared schema; steps without that type are skipped. Country flags are resolved from the shared
+   FlagCDN cache using the source country code or an unambiguous English name. Photos become lossless WebP;
    a thumbnail fallback is reported. Unavailable videos and missing required data raise errors.
 5. GPX tracks use `zelda_steps`, or encoded route segments when tracker points are absent. Invalid
    route segments are skipped with a warning; without a track, only available waypoints are written.
-   The route map is transparent, and neither map tiles nor elevation data are fetched.
+   The route map is transparent and does not fetch map tiles. Track points may be sent to
+   OpenTopoData for elevation enrichment.
 6. The shared writers produce JSON manifests, GPX and XML; multiple accounts also get
    `profiles.xml`. The same converter consumes both services' manifests.
 
-Polarsteps `--skip` reads saved API snapshots and existing media without login or network access.
-Missing required snapshots or media stop the run. `--skip` overrides `--force`.
+Polarsteps `--skip` reads saved API snapshots and existing media without login. Elevation
+enrichment can still access the network. Missing required snapshots or media stop the run.
+`--skip` overrides `--force`.
+
+Both scrapers cache FlagCDN's name-to-code lists in `<output>/flags/codes.json` and all listed
+64×48 WebP flags as `<code>.webp`. Duplicate names keep all codes. Ambiguous names without a
+usable source code are reported and left without a flag. The cache is reused until its table is
+removed; missing or invalid flag images are repaired during normal runs. `--skip` never fetches
+this cache, and warns if the table or flag images are missing.
 
 ## XML and GPX
 
@@ -87,9 +98,10 @@ Missing required snapshots or media stop the run. `--skip` overrides `--force`.
 - One enriched GPX is written to `<output>/<uid>/<trip-slug>.gpx`.
 - Track elements from the downloaded FindPenguins GPX or generated Polarsteps GPX are preserved.
   Existing waypoints are replaced with coordinate-bearing footprints.
-- The closest track point supplies a footprint waypoint's time and custom matched-point extension.
-- FindPenguins attempts OpenTopoData SRTM90m elevation enrichment when track points exist;
-  failures are warnings. Polarsteps does not request elevation data.
+- The closest track point supplies a footprint waypoint's time, its elevation when the footprint has
+  none, and the custom matched-point extension (including elevation when available).
+- Both scrapers attempt OpenTopoData SRTM90m elevation enrichment when track points exist;
+  failures are warnings.
 
 See [`xml-gpx-structure.md`](./xml-gpx-structure.md) for the serialized structure and
 [`data-fields.md`](./data-fields.md) for field provenance.

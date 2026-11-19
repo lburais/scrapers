@@ -85,7 +85,7 @@ directly on the trip dictionary (there is no `insights` level):
 |-------|--------|-------|
 | `description` | First paragraph `.tripInsights .tripInsightsSection p` | Trip description text. |
 | `countries[].name` | `#countryBubbles li` | Country name. |
-| `countries[].flag` | `img` `src` (including subdivision flags) | Source URL, downloaded as a shared WebP and serialized as an archive-root-relative `flags/...` path. |
+| `countries[].flag` | Country name and flag code from `img` `src` when available | FlagCDN cache path relative to the archive root; unknown or ambiguous flags are empty. |
 | `distance` | `.statsSection .number` next to the "kilometers" label | Digits only (`2,436` → `2436`), km. |
 | `transports[].name` | `.transportStats li .transport` | Lower-cased, e.g. `camper`, `flight`, `train`. |
 | `transports[].distance` | `.transportStats li .value` | Digits only, km. |
@@ -95,7 +95,7 @@ XML/GPX output (trip metadata extensions):
 ```xml
 <description>…</description>
 <countries>
-  <country><name>France</name><flag>flags/fr-0123456789abcdef.webp</flag></country>
+  <country><name>France</name><flag>flags/fr.webp</flag></country>
 </countries>
 <distance>2436</distance>
 <transports>
@@ -170,7 +170,7 @@ snapshots without popup results produce a warning and leave these fields empty.
 | `temperature` | Same element | First number (`-?\d+([.,]\d+)?`), commas removed. |
 | `altitude` | `li .icon-font.altitude` → parent text | First number, commas removed. |
 | `country` | `.fpMenuPlacesList a.tag` with a link starting with `/` but not `/explore/` | Label text; a leading emoji flag is split from the name. |
-| `flag` | Same tag, `img.flag-icon` / `img.flag-sm` `src` | Source URL downloaded to the shared `flags/` directory; missing or failed downloads leave no flag. |
+| `flag` | Country name and flag code from the same tag's `img.flag-icon` / `img.flag-sm` `src` | FlagCDN cache path; unknown or ambiguous flags are empty. |
 | `city` | `a.tag` with `href` starting `/explore/` | Label text. |
 | popup `latitude` / `longitude` | `a.tag.coordAction` (textarea or label, DMS format) | Converted from degrees/minutes/seconds + N/S/E/W to decimal. When absent, the centre of the bounding box in the `/explore/<name>/<lat_min>,<lon_min>,<lat_max>,<lon_max>` link is used. |
 
@@ -207,7 +207,8 @@ Built in [common_writers.py](../common_writers.py) from the data above:
 | Data | How |
 |------|-----|
 | Waypoint `time` | Time of the closest GPX track point to the waypoint (haversine distance). |
-| Waypoint extension `point` | `lat`/`lon` of that closest track point. |
+| Waypoint `ele` | Footprint altitude, or the closest track point's elevation when the footprint has none. |
+| Waypoint extension `point` | `lat`/`lon` and, when available, `ele` of that closest track point. |
 | Track point `ele` | OpenTopoData SRTM90m, batches of 100 points, retries with exponential back-off on HTTP 429. |
 | Trip metadata `uid` | First segment of the trip URL, or the profile name. |
 
@@ -216,7 +217,7 @@ Built in [common_writers.py](../common_writers.py) from the data above:
 | Output | Fields |
 |--------|--------|
 | `<profile>.xml` | Profile fields (`uid`, `name`, `bio`, `location`, `website`, `picture`, `email`); per trip `slug`, `title`, `days`, `url`, `gpx`, and companion `uid`/`name`/`picture`. Trip `period`, `km`, `is_current`, route-map path and insight details are omitted. |
-| `<slug>.gpx` | Waypoint: `lat`, `lon`, `name`=title, `desc`=text, `ele`=footprint altitude, `link`=url; extensions `date`, `day`, `weather`, `temperature`, `overnights`, `flag`, `country`, `city`, `text-private`, repeated `reference`, `photo`, `video`, `gpx`, `pdf`, and matched `point`. Metadata: standard trip `name`, initial `desc`=period, author name/email/website, trip link, and extensions including `start_date`, `slug`, `uid`, `days`, trip details and companions. |
+| `<slug>.gpx` | Waypoint: `lat`, `lon`, `name`=title, `desc`=text, `ele`=footprint altitude or closest track elevation, `link`=url; extensions `date`, `day`, `weather`, `temperature`, `overnights`, `flag`, `country`, `city`, `text-private`, repeated `reference`, `photo`, `video`, `gpx`, `pdf`, and matched `point`. Metadata: standard trip `name`, initial `desc`=period, author name/email/website, trip link, and extensions including `start_date`, `slug`, `uid`, `days`, trip details and companions. |
 | RST (Pelican) | One `trip.rst` per trip and one `footprint.rst` per footprint. Footprint metadata is based on GPX waypoint fields except `desc`, which is the page body. The export also copies photos, videos, attachments, trip cover/route maps and country maps beside the source pages. |
 
 ### Pelican footprint metadata (`footprint.rst`)
@@ -245,12 +246,17 @@ See also [xml-gpx-structure.md](./xml-gpx-structure.md) for the exact XML layout
 Polarsteps uses API v62 rather than FindPenguins HTML. Profile `first_name` and `last_name`,
 `description`, `living_location_name` and profile image paths populate the shared user fields.
 Trip `name`/`display_name`, `summary`, dates, `total_km` and cover photo populate the trip.
-Each nondeleted `all_steps` or `steps` entry supplies a footprint's title, dates, coordinates,
-locality, country, weather, temperature, description links and ordered media. Available route
-segment transport modes populate `transports`; missing transport distances and flag images stay
-empty. The original API objects remain in `api-user.json` and `api-trip.json`.
+Each nondeleted `all_steps` or `steps` entry with `type` equal to `1` supplies a footprint's title, dates, coordinates,
+locality, country, weather, temperature, description links and ordered media. FlagCDN paths are
+selected by country code or an unambiguous English name and written to the trip and footprint
+flags. Available route segment transport modes populate `transports`; missing transport distances
+remain empty. The original API objects remain in `api-user.json` and `api-trip.json`.
+Numeric values inside the normalized Polarsteps trip manifest are strings, matching
+FindPenguins; the manifest's `version` remains the number `1`.
+Known `weather_condition` codes are converted to weather emoji; unrecognized codes are
+preserved with a warning. Raw API snapshots retain the original codes.
 
 The GPX track uses `zelda_steps`, falling back to encoded `route_segments` when no tracker points
-are available. Polarsteps does not call the elevation service. See
+are available. Polarsteps attempts track elevation enrichment through OpenTopoData. See
 [implementation.md](./implementation.md#polarsteps-scraping-and-serialization-flow) for
 authentication, media, snapshot and replay behavior.

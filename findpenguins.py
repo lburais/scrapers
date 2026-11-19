@@ -4,7 +4,6 @@
 
 from urllib.parse import urljoin, urlparse
 
-import hashlib
 import os
 import re
 import shutil
@@ -22,30 +21,21 @@ from common_writers import (
 )
 from common_archive import write_profile, write_trip
 from common_profiles import DEFAULT_SETTINGS, load_profiles as load_service_profiles
+from common_utils import country_flag, download_country_flags
 from output_safety import clear_folders
 
 # ##############################################################################################
 # process_profile
 # ##############################################################################################
 
-def download_trip_flags(output, trip, footprints):
-    """Download flags once per source URL and store archive-root-relative paths."""
+def resolve_trip_flags(trip, footprints, country_codes):
+    """Resolve trip and footprint flags against the shared FlagCDN cache."""
     for entry in [*(trip.get("countries") or []), *footprints]:
         flag_url = str(entry.get("flag") or "").strip()
-        if not flag_url:
-            continue
-        try:
-            parsed = urlparse(flag_url)
-            if parsed.scheme not in ("http", "https") or not parsed.netloc:
-                raise ValueError("flag URL must be an absolute HTTP(S) URL")
-            stem = os.path.splitext(os.path.basename(parsed.path))[0]
-            stem = re.sub(r"[^a-z0-9-]+", "-", stem.lower()).strip("-") or "flag"
-            digest = hashlib.sha256(flag_url.encode("utf-8")).hexdigest()[:16]
-            path = download_image(flag_url, os.path.join(output, "flags"), filename=f"{stem}-{digest}")
-            entry["flag"] = os.path.relpath(path, output).replace(os.sep, "/")
-        except (OSError, ValueError, requests.RequestException) as exc:
-            print(f"  WARNING: flag download failed for {flag_url}: {exc}")
-            entry["flag"] = ""
+        match = re.search(r"/img/flags-png/([a-z]{2}(?:-[a-z0-9]+)*)\.png$",
+                          urlparse(flag_url).path, re.IGNORECASE)
+        code = match.group(1) if match else None
+        entry["flag"] = country_flag(entry.get("name") or entry.get("country"), country_codes, code)
 
 
 def process_profile(
@@ -68,6 +58,7 @@ def process_profile(
     trip_slug = settings["trip"]
     map_background = settings["map_background"]
     show_footprint_bubbles = settings["footprint_bubbles"]
+    country_codes = download_country_flags(output, skip=skip)
 
     if skip:
         session = page = playwright = browser = None
@@ -130,7 +121,7 @@ def process_profile(
                     page, trip["url"], trip_dir, skip=skip
                 )
                 trip.update(insights)
-                download_trip_flags(output, trip, footprints)
+                resolve_trip_flags(trip, footprints, country_codes)
                 if insights_companions:
                     for companion in insights_companions:
                         try:

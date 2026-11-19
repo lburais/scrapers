@@ -160,6 +160,7 @@ def build_trip_gpx(gpx_path, user_data, trip, footprints, enrich_elevation=True)
     @param trip Dictionary describing one trip.
     @param footprints List of trip footprint dictionaries.
     @param enrich_elevation Whether to query the elevation service for track points.
+    Waypoints without altitude inherit the nearest track point's elevation when available.
     @return None
     """
 
@@ -307,10 +308,27 @@ def build_trip_gpx(gpx_path, user_data, trip, footprints, enrich_elevation=True)
         except Exception as exc:
             print(f"  - WARNING: unable to enrich trkpt elevations: {exc}")
 
+    for point, track_point in zip(track_points, track_point_elements):
+        elevation = (track_point.findtext(gpx_tag("ele")) or "").strip()
+        point["ele"] = None
+        if elevation:
+            try:
+                parsed_elevation = float(elevation)
+                if not isfinite(parsed_elevation):
+                    raise ValueError("non-finite elevation")
+                point["ele"] = parsed_elevation
+            except ValueError:
+                print(f"  - WARNING: invalid track point elevation: {elevation!r}")
+
     for waypoint in waypoints:
         closest = find_closest_trackpoint(waypoint, track_points)
         if not closest:
             continue
+
+        if waypoint.find(gpx_tag("ele")) is None and closest["ele"] is not None:
+            waypoint_elevation = ET.Element(gpx_tag("ele"))
+            waypoint_elevation.text = str(closest["ele"])
+            waypoint.insert(0, waypoint_elevation)
 
         if closest.get("time"):
             waypoint_time = waypoint.find(gpx_tag("time"))
@@ -322,12 +340,13 @@ def build_trip_gpx(gpx_path, user_data, trip, footprints, enrich_elevation=True)
         if waypoint_extensions is None:
             waypoint_extensions = ET.SubElement(waypoint, gpx_tag("extensions"))
 
-        ET.SubElement(
-            waypoint_extensions,
-            "point",
-            lat=f"{closest['lat']:.6f}",
-            lon=f"{closest['lon']:.6f}",
-        )
+        point_attributes = {
+            "lat": f"{closest['lat']:.6f}",
+            "lon": f"{closest['lon']:.6f}",
+        }
+        if closest["ele"] is not None:
+            point_attributes["ele"] = f"{closest['ele']:.6f}"
+        ET.SubElement(waypoint_extensions, "point", point_attributes)
 
     for track_element in track_elements:
         root.remove(track_element)

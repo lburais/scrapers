@@ -195,12 +195,20 @@ Polarsteps. Les appels de profil et de voyage suivent
 demandée afin de récupérer la trace GPS lorsqu'elle est disponible.
 
 Les étapes, textes, photos, vidéos, météo, pays et modes de transport disponibles
-sont intégrés aux mêmes manifestes, XML et GPX que FindPenguins. Les réponses API
+sont intégrés aux mêmes manifestes, XML et GPX que FindPenguins.
+Seules les étapes non supprimées dont le `type` vaut `1` sont archivées ;
+les autres, y compris celles sans `type`, sont ignorées. Les réponses API
 complètes sont conservées dans `api-user.json` et `api-trip.json`. Elles peuvent
-contenir des données privées : protégez l'archive et ne la publiez pas. La trace
-GPS utilise `zelda_steps`, ou les routes encodées disponibles ; sans trace, le
+contenir des données privées : protégez l'archive et ne la publiez pas.
+Les conditions météo connues sont converties en icônes comme pour FindPenguins ;
+un code inconnu est conservé avec un avertissement.
+Les valeurs numériques du voyage et des étapes sont enregistrées sous forme de
+chaînes dans `trip.json`, comme pour FindPenguins ; le champ de version du
+manifeste reste numérique. Les réponses API brutes ne sont pas modifiées.
+La trace GPS utilise `zelda_steps`, ou les routes encodées disponibles ; sans trace, le
 GPX contient uniquement les étapes. Seule une carte transparente locale est
-générée : aucune coordonnée n'est envoyée à un service de cartes ou d'altitude.
+générée. Les coordonnées de la trace peuvent être envoyées au service
+OpenTopoData pour enrichir les altitudes.
 Si une photo originale est inaccessible, une miniature disponible est utilisée
 avec un avertissement ; une vidéo inaccessible arrête la collecte. Les fichiers
 déjà présents sont réutilisés : pour retenter un original après un avertissement,
@@ -211,9 +219,9 @@ nom, par exemple `42-aventure`. `-t` sélectionne ce slug complet. Les archives
 créées avant ce changement utilisent les anciens noms : relancez une collecte
 pour créer les nouveaux dossiers ; `--skip` ne réutilise pas les anciens dossiers.
 Les anciens dossiers et articles ne sont pas supprimés automatiquement.
-`--skip` relit les réponses sauvegardées et
-les médias déjà téléchargés sans connexion ni accès réseau ; un fichier manquant
-arrête la collecte. Pour rescraper après nettoyage, utilisez `--force` (ou
+`--skip` relit les réponses sauvegardées et les médias déjà téléchargés sans
+connexion au compte ; un fichier manquant arrête la collecte. Le service
+d'altitude peut toujours être contacté. Pour rescraper après nettoyage, utilisez `--force` (ou
 `--force --trip SLUG` pour un voyage). Utilisez un dossier d'archive distinct
 de FindPenguins si les noms de profils coïncident.
 
@@ -288,7 +296,10 @@ sont présents que lorsqu'ils ont été obtenus ou générés :
 ```text
 output/
 ├── profiles.xml                       # Index fusionné si plusieurs profils traités
-├── flags/                             # Drapeaux WebP partagés
+├── flags/
+│   ├── codes.json                     # Nom de pays → liste des codes FlagCDN
+│   ├── fr.webp                        # Drapeau FlagCDN (64 × 48)
+│   └── ...                            # Autres drapeaux et drapeaux FindPenguins
 ├── pseudo_findpenguins/
 │   ├── pseudo_findpenguins.xml         # Index XML du profil
 │   ├── profile.json                   # Manifeste du profil et tailles d'image
@@ -322,6 +333,9 @@ du GPX enrichi.
 ```text
 polarsteps-output/
 ├── profiles.xml                       # Index fusionné si plusieurs profils traités
+├── flags/
+│   ├── codes.json                     # Nom de pays → liste des codes FlagCDN
+│   └── *.webp                         # Drapeaux FlagCDN (64 × 48)
 └── pseudo_polarsteps/
     ├── pseudo_polarsteps.xml           # Index XML du profil
     ├── profile.json                   # Manifeste du profil et tailles d'image
@@ -368,12 +382,17 @@ content/
 
 Le voyage porte les métadonnées `Date` (première étape), `EndDate` (dernière étape plus ses nuits), `Transport` (ex. `bus 682 km; flight 581 km`) et `Category: findpenguins`; ses tags sont `findpenguins`, `trip` et les pays. Les étapes ont le tag `footprint`. Toutes les images (photos, couvertures, avatars, cartes) sont converties en WebP sans perte; les vidéos sont conservées telles quelles.
 
-Les drapeaux proviennent des URL d'images FindPenguins, y compris les subdivisions.
-Chaque URL est téléchargée une seule fois dans `output/flags/`, puis copiée dans
-`--content/flags/`. Les champs `CountryFlags` et `Flag` référencent `flags/...`;
-le site publie ces images à la racine `flags/`. En cas d'échec, un avertissement
-est affiché et le nom du pays reste visible sans image. Rescraper les anciens
-voyages pour remplacer leurs emojis par ces fichiers.
+Les deux scrapers téléchargent les drapeaux FlagCDN en WebP 64 × 48 dans
+`output/flags/` ainsi qu'une table `codes.json` associant chaque nom anglais à
+une liste de codes (y compris les subdivisions et les noms en double). Les fichiers
+existants valides sont réutilisés ; supprimer `codes.json` permet de rafraîchir la
+liste lors d'une collecte normale. En mode `--skip`, seuls les fichiers présents
+sont utilisés : si la table ou un drapeau manque, un avertissement est affiché.
+Les deux scrapers utilisent le code du pays lorsqu'il est disponible ; sinon, un nom
+inconnu ou ambigu reste sans drapeau et produit un avertissement. FindPenguins
+utilise les codes présents dans les URL de ses drapeaux pour sélectionner les images
+en cache, sans télécharger ces drapeaux. Les chemins `flags/...` sont enregistrés dans `trip.json`, puis les
+drapeaux référencés sont copiés vers `--content/flags/` pour le site Pelican.
 
 Les articles conservent l'image originale et ajoutent des variantes redimensionnées (jamais agrandies), référencées par les métadonnées :
 

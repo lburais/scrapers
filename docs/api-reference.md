@@ -13,7 +13,7 @@ module-private helpers. Docstrings in the source provide further details.
 
 | Function | Purpose |
 |---|---|
-| `download_trip_flags(output, trip, footprints)` | Download country/footprint flags once per URL into `<output>/flags/` and store archive-relative paths. |
+| `resolve_trip_flags(trip, footprints, country_codes)` | Resolve FindPenguins flags from the shared FlagCDN cache and store archive-relative paths. |
 | `process_profile(profile_id, username, password, settings)` | End-to-end scrape of one profile: login, trips, footprints, GPX, maps, XML and manifests. |
 | `load_profiles(profiles_file)` | Read the profiles JSON file and split profiles from the optional `settings` entry. |
 | `scrapper(profiles_file, output, trip=None, force=False, skip=False)` | Scrape all profiles into the archive without generating Pelican articles. |
@@ -33,7 +33,8 @@ module-private helpers. Docstrings in the source provide further details.
 | `_coordinates(location)` / `_track_points(source)` / `_decode_route(route)` | Read tracker locations or decode route polylines. |
 | `seed_gpx(path, source)` | Create the trip GPX track before adding waypoints. |
 | `_require_list(data, *names)` | Validate a required API list. |
-| `normalize_trip(source, username, slug, profile_dir, skip)` | Map a trip and its steps to the shared archive schema. |
+| `weather_icon(condition)` | Convert known weather codes to icons; warn and preserve unknown values. |
+| `normalize_trip(source, username, slug, profile_dir, skip, country_codes=None)` | Map a trip and its steps to the shared archive schema. |
 | `scrape(username, output="output", trip_slug=None, skip=False, credentials=None, sizes=None)` | Archive a profile via the API or saved snapshots. |
 | `scrape_profiles(profiles_file, output="output", trip_slug=None, skip=False, force=False)` | Archive Polarsteps accounts from a shared profiles file; force clears the archive or selected trips unless skip is enabled. |
 
@@ -118,6 +119,8 @@ modules re-export their shared implementations for compatibility.
 | Function | Purpose |
 |---|---|
 | `gpx_tag(name)` | Namespaced GPX tag name. |
+| `download_country_flags(output, skip=False)` | Cache FlagCDN's name-to-code lists and 64×48 WebP flags, or use cached files in skip mode. |
+| `country_flag(name, country_codes, code=None)` | Resolve a country code or an unambiguous name to an archive-relative flag path. |
 | `add_text_element(parent, name, value, namespace=GPX_NS)` | Append a text child only when the value is non-empty. |
 | `format_tree(tree)` | Indent an ElementTree with two spaces. |
 | `clean_text(t)` | Normalize whitespace. |

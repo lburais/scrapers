@@ -44,8 +44,7 @@ flowchart TD
 
 Each scraper normalizes source data into dictionaries for the shared writers. FindPenguins
 normally logs a trip-level error and continues; Polarsteps propagates errors. Both can replay
-saved source data with `--skip`, but only Polarsteps avoids network access during replay.
-The FindPenguins GPX writer may query an elevation service; Polarsteps disables that enrichment.
+saved source data with `--skip`. Both scrapers may query an elevation service during replay.
 
 ## Output Layout
 

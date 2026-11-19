@@ -2,11 +2,121 @@
 
 import os
 import re
+import json
+import tempfile
 import xml.etree.ElementTree as ET
+from io import BytesIO
+from pathlib import Path
 from urllib.parse import urlparse
+
+import requests
 from PIL import Image
 
+from common_archive import _write_json
 from common_config import GPX_NS
+
+
+def download_country_flags(output, skip=False):
+    """Cache FlagCDN's name-to-codes table and 64x48 WebP flags under output/flags.
+
+    Duplicate names retain every code. Skip mode uses only cached data and warns
+    about missing flags; normal mode downloads or repairs missing files.
+    """
+    print(f"  - Loading country flags ...")
+    flags_dir = Path(output) / "flags"
+    if flags_dir.is_symlink():
+        raise ValueError(f"Refusing symbolic-link flags directory: {flags_dir}")
+    codes_path = flags_dir / "codes.json"
+    if codes_path.is_symlink():
+        raise ValueError(f"Refusing symbolic-link flag table: {codes_path}")
+    if codes_path.exists():
+        with codes_path.open(encoding="utf-8") as handle:
+            names = json.load(handle)
+    elif skip:
+        print(f"  WARNING: no saved country flag table at {codes_path}")
+        return {}
+    else:
+        response = requests.get("https://flagcdn.com/en/codes.json", timeout=30)
+        response.raise_for_status()
+        source = response.json()
+        if not isinstance(source, dict) or not source:
+            raise ValueError("FlagCDN country codes must be a nonempty object")
+        names = {}
+        for code, name in source.items():
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError(f"Invalid FlagCDN country name for code {code!r}")
+            names.setdefault(name, []).append(code)
+
+    if not isinstance(names, dict) or not names:
+        raise ValueError(f"Invalid country flag table: {codes_path}")
+    codes = set()
+    for name, entries in names.items():
+        if not isinstance(name, str) or not name.strip() or not isinstance(entries, list) or not entries:
+            raise ValueError(f"Invalid country flag table entry: {name!r}")
+        for code in entries:
+            if not isinstance(code, str) or not re.fullmatch(r"[a-z]{2}(?:-[a-z0-9]+)*", code):
+                raise ValueError(f"Invalid country flag code: {code!r}")
+            codes.add(code)
+
+    flags_dir.mkdir(parents=True, exist_ok=True)
+    available = set()
+    for code in sorted(codes):
+        destination = flags_dir / f"{code}.webp"
+        if destination.is_symlink():
+            raise ValueError(f"Refusing symbolic-link flag file: {destination}")
+        valid = False
+        if destination.is_file():
+            try:
+                with Image.open(destination) as image:
+                    valid = image.format == "WEBP" and image.size == (64, 48)
+                    image.verify()
+            except OSError:
+                valid = False
+        if not valid:
+            if skip:
+                print(f"  WARNING: missing or invalid saved flag: {destination}")
+                continue
+            response = requests.get(f"https://flagcdn.com/64x48/{code}.webp", timeout=30)
+            response.raise_for_status()
+            with Image.open(BytesIO(response.content)) as image:
+                if image.format != "WEBP" or image.size != (64, 48):
+                    raise ValueError(f"FlagCDN returned an invalid 64x48 WebP flag for {code}")
+                image.verify()
+            temporary = None
+            try:
+                with tempfile.NamedTemporaryFile(dir=flags_dir, prefix=".flag-", delete=False) as handle:
+                    temporary = Path(handle.name)
+                    handle.write(response.content)
+                os.replace(temporary, destination)
+            finally:
+                if temporary is not None:
+                    temporary.unlink(missing_ok=True)
+        available.add(code)
+    if not skip:
+        _write_json(str(codes_path), names)
+    return {name: entries if all(code in available for code in entries) else []
+            for name, entries in names.items()}
+
+
+def country_flag(name, country_codes, code=None):
+    """Return an archive-relative flag path when the country can be identified."""
+    if not country_codes or not name:
+        return ""
+    requested_code = code.lower() if isinstance(code, str) else ""
+    matches = [item for country, codes in country_codes.items()
+               if country.casefold() == str(name).strip().casefold() for item in codes]
+    if requested_code and any(requested_code in codes for codes in country_codes.values()):
+        if matches and requested_code not in matches:
+            print(f"  WARNING: country flag code {requested_code!r} does not match {name!r}")
+            return ""
+        return f"flags/{requested_code}.webp"
+    if requested_code:
+        print(f"  WARNING: unknown or unavailable country flag code: {requested_code!r}")
+    if len(matches) == 1:
+        return f"flags/{matches[0]}.webp"
+    print(f"  WARNING: {'ambiguous' if matches else 'unknown'} country flag for {name!r}")
+    return ""
+
 
 def gpx_tag(name):
     """! @brief Build a GPX namespaced tag for ElementTree operations.
