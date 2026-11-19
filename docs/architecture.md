@@ -54,9 +54,21 @@ For profile id `<uid>`, the primary archive is written under `--output`:
 - `<output>/<uid>/<uid>.xml`: profile and trip index.
 - `<output>/<uid>/profile.json` and `<output>/<uid>/<trip-slug>/trip.json`: manifests used by the independent converter.
 - `<output>/<uid>/<trip-slug>.gpx`: route and footprint waypoints.
-- `<output>/<uid>/<trip-slug>/`: downloaded route source, trip image, footprint photos/videos,
-  source snapshots, and `map_trip.webp` when a valid route is available. FindPenguins also
-  attempts `satellite_trip.webp`; Polarsteps stores `api-user.json` and `api-trip.json`.
+- `<output>/profiles.xml`: merged index when more than one profile is processed.
+- `<output>/<uid>/<trip-slug>/`: trip image, footprint photos/videos and `map_trip.webp`
+  when a valid route is available. FindPenguins also attempts `satellite_trip.webp`.
+
+FindPenguins saves the profile page as `<output>/<uid>/page-<sha256>.html`, and trip and
+footprint pages in the trip directory using the same naming scheme. Each footprint's popup data
+is saved there as `page-<sha256>.popup.json`, with the same URL hash as its HTML; trip insights
+are saved as `insights.html` when obtained. The downloaded trip GPX is temporarily written in
+the trip directory and normally removed after the enriched GPX is produced.
+
+Polarsteps instead saves the profile response as `<output>/<uid>/api-user.json` and each trip
+response as `<output>/<uid>/<trip-slug>/api-trip.json`. Its trip slugs start with the numeric ID,
+and step media uses `step-<step-id>-<media-id>` filenames. It does not create HTML snapshots.
+These source files are distinct from the normalized manifests and may contain private data.
+See the [README](../README.md) output examples for the full layouts.
 
 The converter writes Pelican articles under `--content` (default
 `../website/content/articles/findpenguins`): `<content>/<uid>/<trip-slug>/trip.rst` and one

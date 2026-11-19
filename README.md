@@ -280,25 +280,76 @@ s'appliquent qu'aux cartes FindPenguins.
 
 ## 💾 Structure générée
 
-Archive (`--output`) :
+### Archive FindPenguins (`--output`)
+
+Exemple pour un ou plusieurs profils ; les fichiers de médias et de cartes ne
+sont présents que lorsqu'ils ont été obtenus ou générés :
 
 ```text
 output/
-├── flags/                    # Drapeaux WebP partagés entre tous les profils et voyages
-└── pseudo_findpenguins/
-    ├── pseudo_findpenguins.xml # Index XML complet du profil
-    ├── profile.json           # Données de profil et tailles d'image
-    ├── voyage-islande.gpx      # Parcours avec waypoints enrichis
-    └── voyage-islande/         # Médias du voyage (images en WebP sans perte)
-        ├── trip.json           # Voyage et étapes pour aventures2rst
-        ├── map_trip.webp
-        ├── satellite_trip.webp  # Carte satellite avec étapes numérotées
-        ├── cover_trip.webp
-        ├── *.webp              # Photos et images des compagnons
-        └── *.mp4
+├── profiles.xml                       # Index fusionné si plusieurs profils traités
+├── flags/                             # Drapeaux WebP partagés
+├── pseudo_findpenguins/
+│   ├── pseudo_findpenguins.xml         # Index XML du profil
+│   ├── profile.json                   # Manifeste du profil et tailles d'image
+│   ├── pseudo_findpenguins_profile_*.webp
+│   ├── page-<hash-profil>.html         # Capture de la page du profil
+│   ├── voyage-islande.gpx             # Parcours et waypoints enrichis
+│   └── voyage-islande/
+│       ├── trip.json                  # Manifeste du voyage et des étapes
+│       ├── page-<hash-voyage>.html    # Capture de la page du voyage
+│       ├── page-<hash-etape>.html     # Capture de chaque page d'étape
+│       ├── page-<hash-etape>.popup.json # Données du menu de chaque étape
+│       ├── insights.html              # Capture des statistiques, si obtenue
+│       ├── map_trip.webp              # Carte principale, si trace valide
+│       ├── satellite_trip.webp        # Carte satellite, si générée
+│       ├── cover_trip.webp            # Couverture, si disponible
+│       ├── <id-etape>__*.webp         # Photos des étapes
+│       └── <id-etape>__*              # Vidéos et pièces jointes GPX/PDF
+└── <id-compagnon>/
+    └── <id-compagnon>_profile_*.webp  # Avatar partagé, si téléchargé
 ```
 
-Articles Pelican (`--content`) :
+Chaque `<hash-…>` est le SHA-256 de l'URL de la page correspondante :
+le HTML et le JSON du menu d'une même étape ont donc le même hash. Ces
+captures servent à `--skip` ; les anciennes captures HTML restent également
+utilisables. Si le GPX source du voyage est téléchargé, il est temporairement
+placé dans le dossier du voyage puis normalement supprimé après la génération
+du GPX enrichi.
+
+### Archive Polarsteps (`--output`)
+
+```text
+polarsteps-output/
+├── profiles.xml                       # Index fusionné si plusieurs profils traités
+└── pseudo_polarsteps/
+    ├── pseudo_polarsteps.xml           # Index XML du profil
+    ├── profile.json                   # Manifeste du profil et tailles d'image
+    ├── api-user.json                  # Réponse API du profil et liste des voyages
+    ├── pseudo_polarsteps_profile.webp  # Avatar, si disponible
+    ├── 42-aventure.gpx                # Trace et waypoints du voyage
+    └── 42-aventure/                   # Slug préfixé par l'identifiant du voyage
+        ├── trip.json                  # Manifeste du voyage et des étapes
+        ├── api-trip.json              # Réponse API complète du voyage
+        ├── map_trip.webp              # Carte transparente, si trace valide
+        ├── cover_trip.webp            # Couverture, si disponible
+        ├── step-<id-etape>-<id-media>.webp # Photo d'étape
+        └── step-<id-etape>-<id-media>.<ext> # Vidéo d'étape
+```
+
+Le nom d'une vidéo conserve son extension valide, ou utilise `.mp4` par
+défaut. Les deux fichiers `api-*.json` sont les captures relues avec `--skip` ;
+Polarsteps ne crée pas de captures HTML ni de carte satellite.
+
+Dans les deux archives, `profile.json` et `trip.json` sont les manifestes
+normalisés utilisés par le convertisseur, distincts des captures de la source.
+Captures HTML, JSON et médias peuvent contenir des informations privées :
+protégez l'ensemble de l'archive.
+
+### Articles Pelican (`--content`)
+
+La structure est commune aux deux services ; les noms de profil et de voyage
+reflètent l'archive convertie :
 
 ```text
 content/
