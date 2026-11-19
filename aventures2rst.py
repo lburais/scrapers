@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Pelican trip and footprint articles from a FindPenguins archive."""
+"""Generate Pelican trip and footprint articles from a shared scraper archive."""
 
 from pathlib import Path
 

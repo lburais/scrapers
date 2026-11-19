@@ -15,12 +15,13 @@ import zipfile
 
 MODULES = {
     "aventures2rst.py", "findpenguins.py", "aventures_archive.py",
-    "aventures_writers.py", "common_config.py", "common_utils.py",
+    "aventures_writers.py", "common_archive.py", "common_config.py", "common_elevation.py",
+    "common_profiles.py", "common_utils.py", "common_writers.py",
     "findpenguins_archive.py", "findpenguins_config.py", "findpenguins_elevation.py",
     "findpenguins_parsers.py", "findpenguins_utils.py", "findpenguins_writers.py",
-    "output_safety.py", "reminder.py", "reminders2rst.py", "scrapers.py",
+    "output_safety.py", "polarsteps.py", "reminder.py", "reminders2rst.py", "scrapers.py",
 }
-COMMANDS = ("findpenguins", "aventures2rst", "reminder", "reminders2rst")
+COMMANDS = ("findpenguins", "polarsteps", "aventures2rst", "reminder", "reminders2rst")
 
 
 class DistributionTests(unittest.TestCase):
@@ -115,6 +116,8 @@ cases = [
      "findpenguins.scrapper", ("profiles.json", "archive", "trip", True, True)),
     (["findpenguins", "profiles.json"],
      "findpenguins.scrapper", ("profiles.json", "output", None, False, False)),
+    (["polarsteps", "profiles.json", "--output", "archive", "-t", "trip", "--force", "--skip"],
+     "polarsteps.scrape_profiles", ("profiles.json", "archive", "trip"), {"force": True, "skip": True}),
     (["aventures2rst", "--output", "archive", "--content", "articles", "-t", "trip"],
      "aventures2rst.convert", ("archive", "articles", "trip")),
     (["reminder", "--list", "Trips", "--output", "archive", "--all", "--force"],
@@ -122,10 +125,12 @@ cases = [
     (["reminders2rst", "--output", "archive", "--content", "articles"],
      "reminders2rst.convert", ("archive", "articles")),
 ]
-for arguments, target, expected in cases:
+for case in cases:
+    arguments, target, expected = case[:3]
+    keywords = case[3] if len(case) > 3 else {}
     with patch.object(sys, "argv", ["scrapers", *arguments]), patch(target) as called:
         scrapers.main()
-        called.assert_called_once_with(*expected)
+        called.assert_called_once_with(*expected, **keywords)
 """
         result = subprocess.run(
             [str(python), "-I", "-c", code], cwd=self.root, text=True, capture_output=True,

@@ -1,8 +1,7 @@
 # scrapers API reference
 
-Every function and class of the project, grouped by module. Functions prefixed with `_` are
-module-private helpers. Full parameter and return documentation is in the Doxygen-style
-docstrings of each function (`! @brief`, `@param`, `@return`).
+Functions and classes are grouped by module. Functions prefixed with `_` are
+module-private helpers. Docstrings in the source provide further details.
 
 ## `scrapers.py` — CLI
 
@@ -17,8 +16,34 @@ docstrings of each function (`! @brief`, `@param`, `@return`).
 | `download_trip_flags(output, trip, footprints)` | Download country/footprint flags once per URL into `<output>/flags/` and store archive-relative paths. |
 | `process_profile(profile_id, username, password, settings)` | End-to-end scrape of one profile: login, trips, footprints, GPX, maps, XML and manifests. |
 | `load_profiles(profiles_file)` | Read the profiles JSON file and split profiles from the optional `settings` entry. |
-| `clear_folders(output, profiles, trip=None)` | Clear the archive, or only the selected trip of each profile (`--force`); validates paths via `output_safety`. |
 | `scrapper(profiles_file, output, trip=None, force=False, skip=False)` | Scrape all profiles into the archive without generating Pelican articles. |
+
+## `polarsteps.py` — Polarsteps scraper
+
+| Function | Purpose |
+|---|---|
+| `login(username=None, password=None)` | Sign in automatically with credentials or interactively, returning an in-memory session cookie. |
+| `_restrict_login_requests(route)` / `_remember_token(context)` | Restrict automated login to Polarsteps hosts and read the browser cookie. |
+| `load_profile(path)` | Read and validate a legacy private JSON login profile; the CLI uses the shared profiles file instead. |
+| `api_get(session, endpoint)` | Fetch one Polarsteps API v62 object. |
+| `source_data(path, skip, fetch)` | Save an API response or load an existing snapshot. |
+| `slug_for_trip(trip)` / `local_date(value, timezone_id=None)` | Prefix normalized trip slugs with their numeric ID and normalize local calendar dates. |
+| `description_text(value)` | Convert HTML descriptions and links to text and references. |
+| `media_url(value)` / `download_media(item, directory, stem, kind, skip)` | Resolve and archive media, with explicit thumbnail fallback for photos. |
+| `_coordinates(location)` / `_track_points(source)` / `_decode_route(route)` | Read tracker locations or decode route polylines. |
+| `seed_gpx(path, source)` | Create the trip GPX track before adding waypoints. |
+| `_require_list(data, *names)` | Validate a required API list. |
+| `normalize_trip(source, username, slug, profile_dir, skip)` | Map a trip and its steps to the shared archive schema. |
+| `scrape(username, output="output", trip_slug=None, skip=False, credentials=None, sizes=None)` | Archive a profile via the API or saved snapshots. |
+| `scrape_profiles(profiles_file, output="output", trip_slug=None, skip=False, force=False)` | Archive Polarsteps accounts from a shared profiles file; force clears the archive or selected trips unless skip is enabled. |
+
+## `common_profiles.py` — shared profile loading
+
+| Function | Purpose |
+|---|---|
+| `load_profiles(path, service)` | Load accounts from service sections or legacy profiles, and shared settings. |
+
+`DEFAULT_SETTINGS` supplies the common defaults, including image sizes.
 
 ## `aventures2rst.py` — archive to Pelican
 
@@ -40,8 +65,9 @@ docstrings of each function (`! @brief`, `@param`, `@return`).
 |---|---|
 | `validate_clear_directory(directory)` | Reject symlinks, filesystem root, cwd, the project directory and the home directory. |
 | `validate_component(value)` | Reject empty values, `.`/`..` and anything containing path separators. |
+| `clear_folders(output, profiles, trip=None)` | Clear the archive, or only the selected trip of each profile (`--force`). |
 
-## `findpenguins_archive.py` — portable JSON manifest writing
+## `common_archive.py` — portable JSON manifest writing
 
 | Function | Purpose |
 |---|---|
@@ -61,13 +87,16 @@ docstrings of each function (`! @brief`, `@param`, `@return`).
 `findpenguins_config.py`: `BASE_URL`, `LOGIN_PAGE`, `LOGIN_POST`, `HEADERS`.
 `common_config.py`: `GPX_NS`, `XSI_NS`. No functions.
 
-## `findpenguins_elevation.py` — elevations
+## `common_elevation.py` — elevations
 
 | Function | Purpose |
 |---|---|
 | `fetch_elevations(points, source="opentopodata")` | Fill `ele` for points (batches of 100, exponential backoff on HTTP 429). |
 | `smooth(points)` | Savitzky-Golay smoothing of `ele` in place (skipped under 11 points). |
 | `gain_loss(points)` | Cumulative `(gain, loss)` along a track. |
+
+The former `findpenguins_archive`, `findpenguins_writers`, and `findpenguins_elevation`
+modules re-export their shared implementations for compatibility.
 
 ## `findpenguins_parsers.py` — page parsing
 
@@ -117,7 +146,7 @@ docstrings of each function (`! @brief`, `@param`, `@return`).
 | `load_page(page, page_url, outputdir, skip=False, title="", footprint_id="")` | Load (or read from snapshot) a page and return BeautifulSoup. |
 | `get_emoji_flag(code)` | Emoji flag for a country or subdivision code. |
 
-## `findpenguins_writers.py` — XML, GPX and route maps
+## `common_writers.py` — XML, GPX and route maps
 
 | Function | Purpose |
 |---|---|
@@ -126,7 +155,7 @@ docstrings of each function (`! @brief`, `@param`, `@return`).
 | `distance_meters(lat1, lon1, lat2, lon2)` | Great-circle distance in meters. |
 | `find_closest_trackpoint(waypoint, track_points)` | Nearest track point to a waypoint. |
 | `footprint_to_waypoint(footprint)` | Footprint to GPX `<wpt>` element. |
-| `build_trip_gpx(gpx_path, user_data, trip, footprints)` | Build/update the enriched trip GPX. |
+| `build_trip_gpx(gpx_path, user_data, trip, footprints, enrich_elevation=True)` | Build/update the trip GPX, optionally enriching track elevations. |
 | `build_user_xml(user_data, trips)` | Build the per-profile XML index. |
 | `build_merged_xml(profiles_data)` | Build the XML index merging several profiles. |
 | `_mercator_coordinates(lon, lat)` | Project to Web Mercator meters. |

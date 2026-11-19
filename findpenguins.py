@@ -5,7 +5,6 @@
 from urllib.parse import urljoin, urlparse
 
 import hashlib
-import json
 import os
 import re
 import shutil
@@ -15,22 +14,15 @@ import requests
 from findpenguins_config import BASE_URL
 from findpenguins_utils import login, create_browser_page, load_page, download_image, SnapshotError
 from findpenguins_parsers import parse_profile, parse_trips, parse_trip, parse_trip_insights, parse_trip_image
-from findpenguins_writers import (
+from common_writers import (
     build_trip_gpx,
     save_trip_route_map,
     build_user_xml,
     build_merged_xml,
 )
-from findpenguins_archive import write_profile, write_trip
-from output_safety import validate_clear_directory, validate_component
-
-## Default run settings; override them with a "settings" entry in the profiles file.
-DEFAULT_SETTINGS = {
-    "small_size": 128,
-    "large_size": 1600,
-    "map_background": "transparent",
-    "footprint_bubbles": False,
-}
+from common_archive import write_profile, write_trip
+from common_profiles import DEFAULT_SETTINGS, load_profiles as load_service_profiles
+from output_safety import clear_folders
 
 # ##############################################################################################
 # process_profile
@@ -223,45 +215,8 @@ def load_profiles(profiles_file):
     @return Tuple (list of (id, username, password), settings from the "settings" entry over DEFAULT_SETTINGS).
     @exception ValueError Raised when the file has no usable profile.
     """
-    with open(profiles_file, encoding="utf-8") as f:
-        known = json.load(f)
-    if not isinstance(known, dict):
-        raise ValueError(f"{profiles_file} must contain a JSON object")
-
-    settings = {**DEFAULT_SETTINGS, **known.pop("settings", {})}
-
-    profiles = [
-        (entry["id"], entry["username"], entry.get("password", ""))
-        for entry in known.values()
-    ]
-    if not profiles:
-        raise ValueError(f"No profile found in {profiles_file}")
-    return profiles, settings
-
-
-def clear_folders(output, profiles, trip=None):
-    """Clear the archive, or the selected trip for each profile."""
-    validate_clear_directory(output)
-
-    if not trip:
-        for folder in (output,):
-            if os.path.isdir(folder):
-                print(f"Clearing {folder}")
-                shutil.rmtree(folder)
-        return
-
-    validate_component(trip)
-    for profile_id, _, _ in profiles:
-        validate_component(profile_id)
-        for path in (
-            os.path.join(output, profile_id, trip),
-        ):
-            if os.path.isdir(path):
-                print(f"Clearing {path}")
-                shutil.rmtree(path)
-        gpx = os.path.join(output, profile_id, trip + ".gpx")
-        if os.path.isfile(gpx):
-            os.remove(gpx)
+    profiles, settings = load_service_profiles(profiles_file, "findpenguins")
+    return profiles, {**DEFAULT_SETTINGS, **settings}
 
 
 def scrapper(profiles_file, output, trip=None, force=False, skip=False):

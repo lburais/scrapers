@@ -1,11 +1,10 @@
+.gitignore
 .vscode/
 __pycache__/
 venv/
-profiles.json
-franklin.json
-.gitignore
 build/
 dist/
-tests/*
+tests/
 *.egg-info/
 pyapp/
+profile*.json

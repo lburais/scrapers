@@ -4,7 +4,7 @@ This document lists every field the scraper collects from FindPenguins and how e
 Source files: [findpenguins_utils.py](../findpenguins_utils.py),
 [findpenguins_parsers.py](../findpenguins_parsers.py),
 [findpenguins.py](../findpenguins.py),
-[findpenguins_elevation.py](../findpenguins_elevation.py).
+[common_elevation.py](../common_elevation.py).
 
 ## 1. Acquisition methods
 
@@ -14,7 +14,7 @@ Source files: [findpenguins_utils.py](../findpenguins_utils.py),
 | Headless browser | Playwright (Chromium) seeded with the session cookies ([`create_browser_page`](../findpenguins_utils.py)) | Rendering profile, trip and footprint pages ([`load_page`](../findpenguins_utils.py)) and the footprint popup menu. |
 | HTML parsing | BeautifulSoup on `page.content()` | Extracting fields via CSS selectors. |
 | Direct HTTP download | `requests` | GPX route, photos, videos, profile picture. |
-| Third-party API | OpenTopoData SRTM 90m | Track elevation enrichment is always performed. |
+| Third-party API | OpenTopoData SRTM 90m | Track elevation enrichment is attempted when track points exist; failures are reported as warnings. |
 
 Page flow: profile page → trip pages (`/<profile>/trip/<slug>`) → one page per footprint.
 On trip pages, `click_load_more_until_done` clicks `#footprintListLoadMore` until the whole footprint list is loaded.
@@ -113,7 +113,7 @@ FindPenguins index; a consuming site builds its own index from these trip pages.
 
 `parse_trip_insights` also returns the companions from "Travelers in this trip"
 (`#FollowersList li.follower`): `uid` (link `href`), `name` (`.name`) and `avatar` (`.ppBox img` `src`, made
-absolute). The avatar is downloaded to `<trip_dir>/companion_<uid>_*` and its relative path stored
+absolute). The avatar is downloaded to the companion's profile directory and its relative path stored
 as `picture`. When found, these replace the thumbnail-only companions of the profile list in
 `trip["companions"]`. Each is written as
 `<companion><uid>…</uid><name>…</name><picture>…</picture></companion>`.
@@ -202,7 +202,7 @@ A warning is printed for footprints with no matching waypoint.
 
 ## 6. Derived data (not scraped)
 
-Built in [findpenguins_writers.py](../findpenguins_writers.py) from the data above:
+Built in [common_writers.py](../common_writers.py) from the data above:
 
 | Data | How |
 |------|-----|
@@ -239,3 +239,18 @@ Built in [findpenguins_writers.py](../findpenguins_writers.py) from the data abo
 write a profile RST page or a global trip-index RST page.
 
 See also [xml-gpx-structure.md](./xml-gpx-structure.md) for the exact XML layout.
+
+## 8. Polarsteps field mapping
+
+Polarsteps uses API v62 rather than FindPenguins HTML. Profile `first_name` and `last_name`,
+`description`, `living_location_name` and profile image paths populate the shared user fields.
+Trip `name`/`display_name`, `summary`, dates, `total_km` and cover photo populate the trip.
+Each nondeleted `all_steps` or `steps` entry supplies a footprint's title, dates, coordinates,
+locality, country, weather, temperature, description links and ordered media. Available route
+segment transport modes populate `transports`; missing transport distances and flag images stay
+empty. The original API objects remain in `api-user.json` and `api-trip.json`.
+
+The GPX track uses `zelda_steps`, falling back to encoded `route_segments` when no tracker points
+are available. Polarsteps does not call the elevation service. See
+[implementation.md](./implementation.md#polarsteps-scraping-and-serialization-flow) for
+authentication, media, snapshot and replay behavior.

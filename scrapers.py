@@ -16,6 +16,13 @@ def main():
     findpenguins.add_argument("--force", action="store_true", help="Clear the output folder before scraping (only the --trip trip when given)")
     findpenguins.add_argument("--skip", action="store_true", help="Use saved HTML snapshots without navigating; disables --force")
 
+    polarsteps = commands.add_parser("polarsteps", help="Archive a Polarsteps profile using its API")
+    polarsteps.add_argument("profiles", help="JSON file mapping profile names to {id, username, password}")
+    polarsteps.add_argument("--output", default="output", help="Archive folder (default: output)")
+    polarsteps.add_argument("-t", "--trip", help="Archive only this trip slug")
+    polarsteps.add_argument("--force", action="store_true", help="Clear the output folder before scraping (only the --trip trip when given)")
+    polarsteps.add_argument("--skip", action="store_true", help="Use saved API snapshots and existing media without logging in; disables --force")
+
     aventures = commands.add_parser("aventures2rst", help="Convert adventures archive to Pelican articles")
     aventures.add_argument("--output", default="output", help="Adventures archive directory")
     aventures.add_argument("--content", default="../website/content/articles/findpenguins", help="Pelican articles directory")
@@ -38,6 +45,10 @@ def main():
         from findpenguins import scrapper
 
         scrapper(args.profiles, args.output, args.trip, args.force, args.skip)
+    elif args.command == "polarsteps":
+        from polarsteps import scrape_profiles
+
+        scrape_profiles(args.profiles, args.output, args.trip, force=args.force, skip=args.skip)
     elif args.command == "aventures2rst":
         from aventures2rst import convert as convert_aventures
 

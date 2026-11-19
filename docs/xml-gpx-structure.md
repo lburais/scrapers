@@ -1,6 +1,7 @@
 # XML and GPX Structure Reference
 
-This document describes the FindPenguins XML and GPX structures emitted by scrapers.
+This document describes the shared XML and GPX structures emitted by the scrapers.
+Examples use FindPenguins; Polarsteps uses its own profile and trip URLs and ID-prefixed slugs.
 
 ## 1) Profile XML Structure
 
@@ -14,7 +15,7 @@ Root element:
 
 Current top-level children (when values exist):
 
-- `<uid>`: FindPenguins profile id
+- `<uid>`: source profile id
 - `<name>`
 - `<bio>`
 - `<location>`
@@ -67,6 +68,8 @@ GPX root:
 <gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="FindPenguins">
 ```
 
+Polarsteps seeds the GPX with `creator="Polarsteps"` instead.
+
 ## 2.1 Metadata Block
 
 `<metadata>` contains:
@@ -106,6 +109,7 @@ Standard GPX waypoint fields written when available:
 Waypoint extensions (`<wpt><extensions>`) may include:
 
 - `<date>`
+- `<day>`
 - `<weather>`
 - `<temperature>`
 - `<overnights>`
@@ -122,9 +126,11 @@ Waypoint extensions (`<wpt><extensions>`) may include:
 
 Behavior:
 
-- If an official travel-route GPX is downloaded, its track data is preserved.
+- FindPenguins preserves the track data from its downloaded travel-route GPX. Polarsteps seeds
+  tracks from tracker points or encoded route segments.
 - Existing `trk` nodes are temporarily removed during waypoint rebuild and appended back unchanged (except elevation enrichment).
-- `trkpt` may receive or update `<ele>` from OpenTopoData SRTM90m by the elevation enrichment.
+- FindPenguins `trkpt` may receive or update `<ele>` from OpenTopoData SRTM90m. Polarsteps
+  does not request elevation enrichment.
 
 ## 3) Ordering Rules in GPX
 

@@ -4,7 +4,7 @@ This document describes the current data flow and generated outputs.
 
 ## Goals
 
-- Authenticate and load dynamic FindPenguins profile, trip and footprint pages.
+- Authenticate and load FindPenguins pages or Polarsteps API data.
 - Save profile/trip data and downloaded media locally.
 - Generate a profile XML index and an enriched GPX file per trip.
 - Generate Pelican RST articles for trips and footprints.
@@ -12,17 +12,19 @@ This document describes the current data flow and generated outputs.
 ## Main Components
 
 - `scrapers.py`: CLI argument parsing and program dispatch.
-- `findpenguins.py`: archive orchestration.
-- `output_safety.py`: guards for `--force` directory clearing and path components (trip slugs).
-- `findpenguins_archive.py`: write portable per-profile and per-trip JSON manifests.
+- `findpenguins.py` / `polarsteps.py`: service-specific archive orchestration.
+- `common_profiles.py`: shared profile-file parsing and default settings.
+- `output_safety.py`: shared `--force` cleanup and path safety checks.
+- `common_archive.py`: write portable per-profile and per-trip JSON manifests.
 - `aventures_archive.py`: read manifests and resolve archive-relative media paths.
 - `aventures2rst.py`: independent archive-to-Pelican conversion.
 - `reminder.py` / `reminders2rst.py`: `rem export` JSON export and per-reminder Pelican articles.
 - `findpenguins_config.py`: FindPenguins endpoints and request headers; `common_config.py`: XML namespaces.
 - `findpenguins_utils.py`: login, Playwright setup, page loading and downloads.
 - `findpenguins_parsers.py`: profile, trip, insight and footprint extraction.
-- `findpenguins_writers.py`: XML/GPX serialization and route-map WebP images.
-- `findpenguins_elevation.py`: OpenTopoData SRTM90m enrichment for GPX track-point elevations.
+- `common_writers.py`: shared XML/GPX serialization and route-map WebP images.
+- `common_elevation.py`: OpenTopoData SRTM90m enrichment for GPX track-point elevations.
+- `findpenguins_archive.py`, `findpenguins_writers.py`, `findpenguins_elevation.py`: compatibility imports for the shared modules.
 - `aventures_writers.py`: Pelican RST articles and country maps.
 - `common_utils.py`: shared XML, text and image helpers.
 
@@ -30,25 +32,20 @@ This document describes the current data flow and generated outputs.
 
 ```mermaid
 flowchart TD
-  A[CLI profiles and options] --> B[HTTP login]
-  B --> C[Playwright Chromium with session cookies]
-  C --> D[Load profile and parse trips]
-  D --> E{For each trip}
-  E --> F[Load trip and insights]
-  F --> G[Download route GPX and footprint media]
-  G --> H[Parse footprints and match GPX waypoints]
-  H --> I[Build enriched trip GPX]
-  I --> J[Track elevation enrichment]
-  I --> K[Optional route-map PNG]
-  I --> L[Update profile XML]
-  K --> M[Portable JSON manifests]
-  L --> M
-  M --> O[aventures2rst: Pelican trip and footprint RST]
+  A[CLI profiles and options] --> B[FindPenguins HTTP login and Chromium pages]
+  A --> C[Polarsteps Chromium login and API]
+  B --> D[Parse pages and downloaded GPX]
+  C --> E[Normalize API snapshots and tracker or route data]
+  D --> F[Shared archive writers]
+  E --> F
+  F --> G[Profile XML, trip GPX, maps and JSON manifests]
+  G --> H[aventures2rst: Pelican trip and footprint RST]
 ```
 
-The profile and trip parsers collect data into dictionaries. The writers serialize those
-dictionaries to the requested output formats. A failure processing one trip is logged and does
-not normally stop the remaining trips.
+Each scraper normalizes source data into dictionaries for the shared writers. FindPenguins
+normally logs a trip-level error and continues; Polarsteps propagates errors. Both can replay
+saved source data with `--skip`, but only Polarsteps avoids network access during replay.
+The FindPenguins GPX writer may query an elevation service; Polarsteps disables that enrichment.
 
 ## Output Layout
 
@@ -56,10 +53,10 @@ For profile id `<uid>`, the primary archive is written under `--output`:
 
 - `<output>/<uid>/<uid>.xml`: profile and trip index.
 - `<output>/<uid>/profile.json` and `<output>/<uid>/<trip-slug>/trip.json`: manifests used by the independent converter.
-- `<output>/<uid>/<trip-slug>.gpx`: enriched route and footprint waypoints.
+- `<output>/<uid>/<trip-slug>.gpx`: route and footprint waypoints.
 - `<output>/<uid>/<trip-slug>/`: downloaded route source, trip image, footprint photos/videos,
-  optional fetched HTML, and `map_trip.webp` plus `satellite_trip.webp` when a valid
-  route is available and the satellite imagery request succeeds.
+  source snapshots, and `map_trip.webp` when a valid route is available. FindPenguins also
+  attempts `satellite_trip.webp`; Polarsteps stores `api-user.json` and `api-trip.json`.
 
 The converter writes Pelican articles under `--content` (default
 `../website/content/articles/findpenguins`): `<content>/<uid>/<trip-slug>/trip.rst` and one
@@ -71,27 +68,27 @@ footprint pages.
 All downloaded and generated images are stored as lossless WebP; videos are untouched.
 
 Route maps are 1200×800 WebP images with a white route line. The default background is transparent;
-`satellite` and `street` backgrounds use Esri's export service. Footprint bubbles are opt-in.
+`satellite` and `street` backgrounds use Esri's export service for FindPenguins. Footprint
+bubbles are opt-in for the FindPenguins main map; Polarsteps uses a transparent map without them.
 Trips without a valid GPX track do not get a route map.
 
 ## Design Decisions
 
 - Keep parser logic separate from serialization.
 - Keep media paths in the JSON manifests relative to the archive root so archives can be moved.
-- Treat downloaded GPX track geometry as the route source of truth; regenerate waypoints from
-  footprints and preserve the track elements.
-- Add each coordinate-bearing footprint as a waypoint, with additional FindPenguins fields in
+- Use the downloaded FindPenguins GPX or Polarsteps tracker/route data as the track source;
+  regenerate waypoints from footprints and preserve the track elements.
+- Add each coordinate-bearing footprint as a waypoint, with available fields in
   GPX extensions.
 - Keep the profile XML index lightweight: trips refer to their GPX file and include companion
   metadata.
-- Omit unavailable optional fields and continue after isolated trip-level failures.
+- Omit unavailable optional fields; report failures according to the source scraper.
 
 ## Extensibility
 
-- Add extraction logic in `findpenguins_parsers.py`.
-- Map new fields to XML/GPX in `findpenguins_writers.py` or RST in `aventures_writers.py`.
-- Add CLI behavior in `scrapers.py` and FindPenguins orchestration in `findpenguins.py`.
-- Every function is documented in [`api-reference.md`](./api-reference.md); keep it in sync with the
-  Doxygen-style docstrings (`! @brief`, `@param`, `@return`) when adding or changing functions.
+- Add extraction logic in `findpenguins_parsers.py` or `polarsteps.py`.
+- Map new fields to XML/GPX in `common_writers.py` or RST in `aventures_writers.py`.
+- Add CLI behavior in `scrapers.py` and service orchestration in the appropriate scraper.
+- Keep [`api-reference.md`](./api-reference.md) and source docstrings in sync when changing functions.
 - Update [`data-fields.md`](./data-fields.md) and [`xml-gpx-structure.md`](./xml-gpx-structure.md)
   when changing exported fields or schemas.

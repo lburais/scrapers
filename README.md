@@ -1,22 +1,22 @@
 # scrapers
 
-Des outils Python pour archiver des profils **FindPenguins** et des listes Apple Reminders, puis générer séparément des articles reStructuredText pour Pelican.
+Des outils Python pour archiver des profils **FindPenguins** ou **Polarsteps** et des listes Apple Reminders, puis générer séparément des articles reStructuredText pour Pelican.
 
-Le scraper FindPenguins orchestre l'authentification et télécharge les données et médias. Il génère des archives **GPX**, **XML** et JSON ; `aventures2rst.py` les convertit en sources Pelican. `reminder.py` exporte une liste Apple Reminders avec la commande **rem** ; `reminders2rst.py` génère un article par rappel.
+Les scrapers authentifient et téléchargent les données et médias, puis génèrent des archives **GPX**, **XML** et JSON ; `aventures2rst.py` les convertit en sources Pelican. `reminder.py` prépare une commande **rem** à exécuter manuellement ; `reminders2rst.py` génère un article par rappel exporté.
 
 ---
 
 ## ✨ Fonctionnalités
 
 - **Extraction Complète :** Récupération de la biographie de l'utilisateur, de la liste des voyages, des étapes (*footprints*), récits, dates, altitudes et relevés météo.
-- **Authentification :** Session HTTP pour la connexion, puis Chromium piloté par Playwright avec les cookies de cette session pour lire les pages dynamiques.
+- **Authentification :** session HTTP puis Chromium pour FindPenguins ; connexion Chromium et API Polarsteps pour Polarsteps.
 - **Hébergement Multi-Profils :** Possibilité de scraper plusieurs comptes d'un coup avec fusion automatique des indexes.
 - **Export de Données Géographiques :** 
   - Restitution d'un fichier **GPX 1.1** standardisé par voyage avec intégration des waypoints et métadonnées enrichies.
   - Enrichissement optionnel des altitudes des traces via des API topographiques externes (SRTM90m).
 - **Export Pelican (reStructuredText) :**
   - Génération d'un fichier `trip.rst` par voyage et d'un `footprint.rst` par étape. Il n'y a pas de page RST de profil.
-  - Chaque voyage peut inclure une carte de route PNG. Le fond est transparent par défaut; les fonds `satellite` et `street` sont sélectionnables. Les bulles numérotées des étapes sont optionnelles.
+  - Chaque voyage avec une trace valide peut inclure une carte de route WebP. FindPenguins permet de choisir un fond et des bulles numérotées ; Polarsteps utilise un fond transparent.
   - Métadonnées Pelican en champ reStructuredText, avec une image de la carte du pays enregistrée dans le dossier de chaque *footprint* géolocalisé.
   - Les métadonnées des voyages alimentent l'index généré par le site Pelican; les sources contiennent les photos, vidéos, cartes et références des étapes.
 
@@ -29,21 +29,23 @@ Le projet est structuré de manière hautement modulaire :
 ```text
 ├── scrapers.py              # Point d'entrée CLI et sélection du programme
 ├── findpenguins.py          # Orchestrateur FindPenguins
-├── aventures2rst.py         # Conversion des archives FindPenguins en articles Pelican
-├── reminder.py              # Export Apple Reminders via rem
+├── polarsteps.py            # Archive Polarsteps par API et connexion automatique ou interactive
+├── aventures2rst.py         # Conversion des archives en articles Pelican
+├── reminder.py              # Préparation d'un export Apple Reminders via rem
 ├── reminders2rst.py         # Conversion des rappels en articles Pelican
-├── output_safety.py         # Garde-fous pour --force et les composants de chemin
+├── output_safety.py         # Nettoyage --force et validation des chemins
 ├── build_scrapers.sh        # Construction de l'exécutable PyApp
 ├── docs/                    # Documentation technique (dont api-reference.md)
-├── findpenguins_archive.py  # Écriture des manifestes JSON portables
 ├── findpenguins_config.py   # Endpoints et en-têtes HTTP FindPenguins
 ├── findpenguins_utils.py    # Navigation Playwright, cookies et téléchargements
 ├── findpenguins_parsers.py  # Extraction des données et parsing DOM
-├── findpenguins_writers.py  # Génération GPX, XML et cartes de route
-├── findpenguins_elevation.py # Enrichissement topographique des traces GPX
 ├── aventures_archive.py    # Lecture des manifestes pour la conversion
 ├── aventures_writers.py    # Génération des articles Pelican et cartes de pays
+├── common_archive.py       # Écriture des manifestes JSON portables
 ├── common_config.py        # Espaces de noms XML partagés
+├── common_elevation.py     # Enrichissement topographique des traces GPX
+├── common_profiles.py      # Profils et comptes partagés entre les services
+├── common_writers.py       # Génération GPX, XML et cartes de route
 ├── common_utils.py         # Utilitaires XML, texte et images partagés
 └── profiles.json            # Profils, identifiants et réglages
 ```
@@ -67,7 +69,7 @@ python -m pip install -e .
 
 Les dépendances sont déclarées dans `pyproject.toml` ; `pip install -r requirements.txt`
 installe également le projet en mode éditable. L'installation fournit la seule commande
-`scrapers`, avec les sous-commandes `findpenguins`, `aventures2rst`, `reminder`
+`scrapers`, avec les sous-commandes `findpenguins`, `polarsteps`, `aventures2rst`, `reminder`
 et `reminders2rst`. On peut aussi utiliser `python -m scrapers` ou, depuis le
 dépôt, `python scrapers.py`. Sans sous-commande, l'aide est affichée.
 
@@ -75,7 +77,7 @@ Après publication sur PyPI sous un nom disponible, l'installation pourra aussi
 se faire avec `python -m pip install <nom-de-distribution>`.
 
 ### Initialiser Playwright
-Le projet utilise un navigateur Chromium automatisé pour charger le contenu dynamique et interagir avec les menus de FindPenguins :
+Le projet utilise Chromium pour FindPenguins et pour l'authentification Polarsteps :
 ```bash
 python -m playwright install chromium
 ```
@@ -142,6 +144,7 @@ l'emplacement de l'exécutable.
 
 ```bash
 scrapers findpenguins profiles.json [--output DIR] [-t SLUG] [--force] [--skip]
+scrapers polarsteps profiles.json [--output DIR] [-t SLUG] [--force] [--skip]
 scrapers aventures2rst --output DIR [--content DIR] [-t SLUG]
 ```
 
@@ -149,12 +152,13 @@ scrapers aventures2rst --output DIR [--content DIR] [-t SLUG]
 - `--output` : archive JSON, XML, GPX et médias (défaut `output` pour les deux programmes).
 - `--content` : destination des articles Pelican du convertisseur (défaut `../website/content/articles/findpenguins`).
 - `-t`, `--trip` : ne scraper que le voyage portant ce slug (défaut : tous).
-- `--force` : vider `--output` avant de scraper (avec `--trip`, seul ce voyage est supprimé). Les articles Pelican ne sont pas supprimés.
-- Les pages HTML et les données des menus d'étape sont toujours conservées pour permettre leur réutilisation avec `--skip`.
-- `--skip` : utiliser les pages HTML précédemment enregistrées sans les recharger ; désactive `--force` s'il est aussi fourni.
+- `--force` : vider entièrement `--output` avant de scraper, y compris les archives d'autres services qui s'y trouvent. Avec `--trip`, seuls le dossier et le GPX de ce voyage sont supprimés pour chaque profil. Les articles Pelican ne sont pas supprimés.
+- `--skip` : utiliser les captures enregistrées ; désactive `--force` s'il est aussi fourni.
+
+### FindPenguins
 
 Exécutez une première collecte, puis relancez avec `--skip` pour réutiliser
-les pages du profil, du voyage, des étapes et des statistiques. Une page manquante
+les pages HTML enregistrées du profil, du voyage, des étapes et des statistiques. Une page manquante
 arrête l'exécution avec une erreur, sans téléchargement de remplacement. Les
 données des menus d'étape sont également sauvegardées ; pour les anciennes
 captures sans ces données, un avertissement est affiché et les champs
@@ -168,6 +172,50 @@ Les nouveaux manifestes `profile.json` et `trip.json` conservent les champs néc
 XML/GPX ne contiennent pas toutes ces données : rescraper (ou utiliser `--skip` avec
 des captures existantes) pour créer les manifestes. Le convertisseur ne nettoie pas
 les anciens articles ; retirer séparément les articles périmés si nécessaire.
+
+### Polarsteps
+
+```bash
+scrapers polarsteps profiles.json --output polarsteps-output
+scrapers aventures2rst --output polarsteps-output --content ../website/content/articles/findpenguins
+```
+
+`profiles.json` est le même fichier que pour FindPenguins et permet de traiter tous ses comptes
+Polarsteps. Chromium se connecte automatiquement en arrière-plan avec leurs
+identifiants ; les requêtes vers des domaines tiers sont bloquées pendant cette
+connexion. Pour utiliser le mode interactif, laissez le mot de passe vide dans
+le fichier partagé : un navigateur s'ouvre, connectez-vous puis appuyez sur
+Entrée dans le terminal. Celui-ci nécessite un
+affichage graphique ; les deux modes nécessitent Chromium installé.
+Le cookie `remember_token` est utilisé uniquement en mémoire pour les appels
+à `api.polarsteps.com` et n'est pas enregistré.
+L'API non officielle peut changer ; son utilisation dépend des conditions de
+Polarsteps. Les appels de profil et de voyage suivent
+[polarsteps-api](https://github.com/remuzel/polarsteps-api) ; la version 62 est
+demandée afin de récupérer la trace GPS lorsqu'elle est disponible.
+
+Les étapes, textes, photos, vidéos, météo, pays et modes de transport disponibles
+sont intégrés aux mêmes manifestes, XML et GPX que FindPenguins. Les réponses API
+complètes sont conservées dans `api-user.json` et `api-trip.json`. Elles peuvent
+contenir des données privées : protégez l'archive et ne la publiez pas. La trace
+GPS utilise `zelda_steps`, ou les routes encodées disponibles ; sans trace, le
+GPX contient uniquement les étapes. Seule une carte transparente locale est
+générée : aucune coordonnée n'est envoyée à un service de cartes ou d'altitude.
+Si une photo originale est inaccessible, une miniature disponible est utilisée
+avec un avertissement ; une vidéo inaccessible arrête la collecte. Les fichiers
+déjà présents sont réutilisés : pour retenter un original après un avertissement,
+retirez séparément le fichier WebP concerné et relancez.
+
+Les slugs Polarsteps comprennent l'identifiant numérique du voyage avant son
+nom, par exemple `42-aventure`. `-t` sélectionne ce slug complet. Les archives
+créées avant ce changement utilisent les anciens noms : relancez une collecte
+pour créer les nouveaux dossiers ; `--skip` ne réutilise pas les anciens dossiers.
+Les anciens dossiers et articles ne sont pas supprimés automatiquement.
+`--skip` relit les réponses sauvegardées et
+les médias déjà téléchargés sans connexion ni accès réseau ; un fichier manquant
+arrête la collecte. Pour rescraper après nettoyage, utilisez `--force` (ou
+`--force --trip SLUG` pour un voyage). Utilisez un dossier d'archive distinct
+de FindPenguins si les noms de profils coïncident.
 
 ### Apple Reminders
 
@@ -194,14 +242,28 @@ rappels via la fenêtre de confidentialité système.
   "settings": {
     "map_background": "satellite"
   },
-  "MonVoyageur": {
-    "id": "pseudo_findpenguins",
-    "username": "votre_email@exemple.com",
-    "password": "votre_mot_de_passe"
+  "findpenguins": {
+    "MonVoyageur": {
+      "id": "pseudo_findpenguins",
+      "username": "email_findpenguins@exemple.com",
+      "password": "mot_de_passe_findpenguins"
+    }
+  },
+  "polarsteps": {
+    "MonVoyageur": {
+      "id": "pseudo_polarsteps",
+      "username": "identifiant_polarsteps",
+      "password": "mot_de_passe_polarsteps"
+    }
   }
 }
 ```
-Toutes les entrées autres que `settings` sont des profils, tous scrapés à chaque exécution. L'entrée `settings` est facultative :
+Chaque commande traite les comptes de sa section ; une personne peut avoir un
+seul compte ou les deux. `id` identifie le profil à archiver, `username` sert à
+la connexion. Les anciens profils FindPenguins directement sous le nom et les
+profils regroupés par personne restent acceptés. L'entrée `settings` est
+facultative. Le fichier est ignoré par Git à la racine du dépôt ; protégez-le
+(`chmod 600 profiles.json`) et ne le partagez pas.
 
 | Réglage | Défaut | Rôle |
 |---|---|---|
@@ -209,6 +271,10 @@ Toutes les entrées autres que `settings` sont des profils, tous scrapés à cha
 | `large_size` | `1600` | Côté maximal (px) des cartes, de la couverture et des photos `_thumb`. |
 | `map_background` | `transparent` | Fond de `map_trip.webp` : `transparent`, `satellite` ou `street` (Esri). |
 | `footprint_bubbles` | `false` | Bulles numérotées des étapes sur `map_trip.webp`. |
+
+`small_size` et `large_size` sont enregistrés dans les manifestes des deux
+services pour la conversion. `map_background` et `footprint_bubbles` ne
+s'appliquent qu'aux cartes FindPenguins.
 
 ---
 
@@ -269,12 +335,12 @@ Les articles conservent l'image originale et ajoutent des variantes redimensionn
 
 Les cartes de route mesurent 1200×800 pixels. `satellite_trip.webp` utilise toujours
 un fond satellite Esri et des bulles numérotées pour les étapes ; elle nécessite
-un accès réseau. En cas d'échec, la carte principale reste disponible. Un voyage
-sans trace GPX valide n'a pas de carte de route.
+un accès réseau et n'est générée que pour FindPenguins. En cas d'échec, la carte
+principale reste disponible. Un voyage sans trace GPX valide n'a pas de carte de route.
 
 ---
 
 ## 🔒 Sécurité & Bonnes Pratiques
 
 - **Respect des quotas :** Le module d'élévation intègre une gestion adaptative du *Rate Limiting* (attente exponentielle en cas de code HTTP 429) pour ne pas saturer les serveurs tiers.
-- **Fichier `.gitignore` :** Si vous publiez ce projet sur un dépôt public (GitHub), veillez à ajouter votre fichier `profiles.json` à votre `.gitignore` pour protéger vos identifiants FindPenguins.
+- **Données privées :** Les profils racine nommés `profile*.json` sont ignorés par Git ; vérifiez les autres emplacements ou noms avant publication. Protégez aussi les archives, qui peuvent contenir des données privées.
