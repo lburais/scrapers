@@ -27,6 +27,7 @@ def main():
     aventures.add_argument("--output", default="output", help="Adventures archive directory")
     aventures.add_argument("--content", default="../website/content/articles/findpenguins", help="Pelican articles directory")
     aventures.add_argument("-t", "--trip", help="Only convert this trip slug")
+    aventures.add_argument("--category", default="findpenguins", help="Pelican trip category and first service tag")
 
     reminder = commands.add_parser("reminder", help="Prepare an Apple Reminders export")
     reminder.add_argument("--output", required=True, help="Output directory")
@@ -52,7 +53,7 @@ def main():
     elif args.command == "aventures2rst":
         from aventures2rst import convert as convert_aventures
 
-        convert_aventures(args.output, args.content, args.trip)
+        convert_aventures(args.output, args.content, args.trip, args.category)
     elif args.command == "reminder":
         from reminder import export_reminders
 

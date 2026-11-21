@@ -17,9 +17,9 @@ MODULES = {
     "aventures2rst.py", "findpenguins.py", "aventures_archive.py",
     "aventures_writers.py", "common_archive.py", "common_config.py", "common_elevation.py",
     "common_profiles.py", "common_utils.py", "common_writers.py",
-    "findpenguins_archive.py", "findpenguins_config.py", "findpenguins_elevation.py",
-    "findpenguins_parsers.py", "findpenguins_utils.py", "findpenguins_writers.py",
-    "output_safety.py", "polarsteps.py", "reminder.py", "reminders2rst.py", "scrapers.py",
+    "findpenguins_config.py", "findpenguins_parsers.py", "findpenguins_utils.py",
+    "output_safety.py", "polarsteps.py", "polarsteps_config.py", "polarsteps_parsers.py",
+    "polarsteps_utils.py", "reminder.py", "reminders2rst.py", "scrapers.py",
 }
 COMMANDS = ("findpenguins", "polarsteps", "aventures2rst", "reminder", "reminders2rst")
 
@@ -71,6 +71,9 @@ class DistributionTests(unittest.TestCase):
             source_files = {name.split("/", 1)[-1] for name in archive.getnames()}
         for files in (wheel_files, source_files):
             self.assertTrue(MODULES <= files, MODULES - files)
+            self.assertFalse({
+                "findpenguins_archive.py", "findpenguins_elevation.py", "findpenguins_writers.py",
+            } & files)
             self.assertFalse(any(Path(name).name.startswith("fp_") for name in files))
             self.assertNotIn("profiles.json", files)
             self.assertNotIn("franklin.json", files)
@@ -119,7 +122,9 @@ cases = [
     (["polarsteps", "profiles.json", "--output", "archive", "-t", "trip", "--force", "--skip"],
      "polarsteps.scrape_profiles", ("profiles.json", "archive", "trip"), {"force": True, "skip": True}),
     (["aventures2rst", "--output", "archive", "--content", "articles", "-t", "trip"],
-     "aventures2rst.convert", ("archive", "articles", "trip")),
+     "aventures2rst.convert", ("archive", "articles", "trip", "findpenguins")),
+    (["aventures2rst", "--output", "archive", "--content", "articles", "--category", "polarsteps"],
+     "aventures2rst.convert", ("archive", "articles", None, "polarsteps")),
     (["reminder", "--list", "Trips", "--output", "archive", "--all", "--force"],
      "reminder.export_reminders", ("archive", "Trips", True, True)),
     (["reminders2rst", "--output", "archive", "--content", "articles"],
@@ -173,18 +178,95 @@ for case in cases:
             "sizes": {"small": 128, "large": 1600},
         }), encoding="utf-8")
         (trip_dir / "trip.json").write_text(json.dumps({
-            "version": 1, "trip": {"slug": "journey", "title": "Journey", "footprints": []},
+            "version": 1, "trip": {
+                "slug": "journey", "title": "Journey",
+                "footprints": [{"title": "Stop", "text": "A stop", "country": "France"}],
+            },
         }), encoding="utf-8")
         content = self.root / "trip-articles"
         self.run_command("scrapers", "aventures2rst", "--output", archive, "--content", content)
-        article = (content / "traveller" / "journey" / "trip.rst").read_text(encoding="utf-8")
+        trip_dir = content / "traveller" / "journey"
+        article = (trip_dir / "trip.rst").read_text(encoding="utf-8")
         self.assertIn(":Title: Journey", article)
+        self.assertIn(":Category: findpenguins", article)
+        self.assertIn(":Tags: findpenguins, trip", article)
+        self.assertIn(":Author: Traveller", article)
+        footprint = (trip_dir / "footprint_1" / "footprint.rst").read_text(encoding="utf-8")
+        self.assertIn(":Tags: findpenguins, footprint, France", footprint)
+        self.assertIn(":Author: Traveller", footprint)
+
+        polarsteps_content = self.root / "polarsteps-articles"
+        self.run_command(
+            "scrapers", "aventures2rst", "--output", archive, "--content", polarsteps_content,
+            "--category", "polarsteps",
+        )
+        polarsteps_trip_dir = polarsteps_content / "traveller" / "journey"
+        polarsteps_article = (polarsteps_trip_dir / "trip.rst").read_text(encoding="utf-8")
+        self.assertIn(":Category: polarsteps", polarsteps_article)
+        self.assertIn(":Tags: polarsteps, trip", polarsteps_article)
+        self.assertIn(":Author: Traveller", polarsteps_article)
+        polarsteps_footprint = (
+            polarsteps_trip_dir / "footprint_1" / "footprint.rst"
+        ).read_text(encoding="utf-8")
+        self.assertIn(":Tags: polarsteps, footprint, France", polarsteps_footprint)
+        self.assertIn(":Author: Traveller", polarsteps_footprint)
+
         result = self.run_command(
             "scrapers", "aventures2rst", "--output", archive, "--content", content, "--trip", "missing",
             check=False,
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("No archived trip found", result.stderr)
+
+    def test_polarsteps_measurements_are_whole_numbers(self):
+        python = self.bin_dir / ("python.exe" if os.name == "nt" else "python")
+        code = """
+import tempfile
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from unittest.mock import patch
+
+import common_writers
+import polarsteps
+from common_utils import gpx_tag
+
+source = {
+    "total_km": 12.6,
+    "steps": [{
+        "id": 12, "type": 1, "start_time": "2024-05-01T10:00:00+00:00",
+        "weather_temperature": 18.6, "location": {"lat": 45.7, "lon": 4.8},
+    }],
+    "zelda_steps": [{"location": {"lat": 45.7, "lon": 4.8}}],
+}
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    trip = polarsteps.normalize_trip(source, "owner", "42-trip", root, False)
+    assert trip["distance"] == 13
+    assert trip["footprints"][0]["temperature"] == 19
+    serialized = polarsteps._stringify_trip_numbers(trip)
+    assert serialized["distance"] == "13"
+    assert serialized["footprints"][0]["temperature"] == "19"
+
+    gpx = root / "trip.gpx"
+    polarsteps.seed_gpx(gpx, source)
+    with patch("common_writers.fetch_elevations",
+               side_effect=lambda points: points[0].update(ele=123.6)):
+        common_writers.build_trip_gpx(
+            str(gpx), {}, trip, trip["footprints"], integer_elevation=True
+        )
+    document = ET.parse(gpx).getroot()
+    trackpoint = document.find(f".//{gpx_tag('trkpt')}")
+    waypoint = document.find(gpx_tag("wpt"))
+    assert trackpoint.findtext(gpx_tag("ele")) == "124"
+    assert waypoint.findtext(gpx_tag("ele")) == "124"
+    extensions = waypoint.find(gpx_tag("extensions"))
+    assert extensions.find(gpx_tag("temperature")).text == "19"
+    assert extensions.find(gpx_tag("point")).get("ele") == "124"
+"""
+        result = subprocess.run(
+            [str(python), "-c", code], cwd=self.root, text=True, capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

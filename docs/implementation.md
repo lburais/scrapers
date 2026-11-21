@@ -8,8 +8,9 @@ The single CLI entry point is `scrapers.py`, dispatching to five subcommands.
 
 After installation, use `scrapers findpenguins profiles.json [--output DIR] [-t SLUG] [--force] [--skip]`
 or `scrapers polarsteps profiles.json [--output DIR] [-t SLUG] [--force] [--skip]`, followed by
-`scrapers aventures2rst --output DIR [--content DIR] [-t SLUG]`. The equivalent Python invocation
-is `python -m scrapers <command> ...`.
+`scrapers aventures2rst --output DIR [--content DIR] [-t SLUG] [--category CATEGORY]`. The
+converter defaults to category and first service tag `findpenguins`; use `--category polarsteps`
+for Polarsteps archives. The equivalent Python invocation is `python -m scrapers <command> ...`.
 The shared file has `findpenguins` and `polarsteps` sections mapping names to accounts with `id`,
 `username`, and optional `password`. Each scraper processes its own accounts. Legacy
 FindPenguins entries and per-person service entries are also accepted.
@@ -70,10 +71,11 @@ failures are reported as warnings and do not invalidate an otherwise successful 
 3. API v62 responses from `/users/byusername/<id>` and `/trips/<trip-id>` are saved as
    `<output>/<id>/api-user.json` and `<output>/<id>/<slug>/api-trip.json`. Protect these snapshots
    as private data. Trip slugs start with the numeric ID, for example `42-adventure`.
-4. The scraper maps nondeleted steps with `type` equal to `1` and their available media into the
-   shared schema; steps without that type are skipped. Country flags are resolved from the shared
-   FlagCDN cache using the source country code or an unambiguous English name. Photos become lossless WebP;
-   a thumbnail fallback is reported. Unavailable videos and missing required data raise errors.
+4. The scraper maps the trip owner (`user`) first, followed by `trip_buddies`, as companions. It maps
+   nondeleted steps with `type` equal to `1` and their available media into the shared schema; steps
+   without that type are skipped. Country flags are resolved from the shared FlagCDN cache using the
+   source country code or an unambiguous English name. Photos become lossless WebP; a thumbnail
+   fallback is reported. Unavailable videos and missing required data raise errors.
 5. GPX tracks use `zelda_steps`, or encoded route segments when tracker points are absent. Invalid
    route segments are skipped with a warning; without a track, only available waypoints are written.
    The route map is transparent and does not fetch map tiles. Track points may be sent to
@@ -124,8 +126,9 @@ The converter generates, under `--content`:
 - `<content>/flags/` contains the shared flags used by all exported trips. The website publishes
   them under its output root `flags/`; failed flag downloads are reported and omitted.
 
-The RST export does not generate a user/profile page or a global FindPenguins index. A consuming
-Pelican site can build its own index from trip pages using their `Category: findpenguins` and trip metadata (`Date`, `EndDate`, `Transport`).
+The RST export does not generate a user/profile page or a global service index. A consuming Pelican
+site can build its own index from trip pages using the configured `--category` and trip metadata
+(`Date`, `EndDate`, `Transport`).
 The `TripMap` is generated as `map_trip.webp` from the GPX track after the GPX is finalized.
 The separate `TripSatelliteMap` is generated as `satellite_trip.webp`, always with an Esri
 satellite background and numbered footprint bubbles. Each map is generated independently;
@@ -138,8 +141,8 @@ network access. Footprint bubbles are omitted by default and enabled with
 
 Trip RST metadata retains values used by an index (including period, duration, distance,
 countries, description, cover, route map and companions). It has no body sections for insights or
-footprint links. Country names are individual tags; transport mode distances are combined into the
-`Transport` field.
+footprint links. Country names are individual tags; integer transport-mode distances are summed
+from the mode-tagged GPX tracks and combined into the `Transport` field.
 
 ## Operational Notes
 

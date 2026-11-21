@@ -13,6 +13,9 @@ This document describes the current data flow and generated outputs.
 
 - `scrapers.py`: CLI argument parsing and program dispatch.
 - `findpenguins.py` / `polarsteps.py`: service-specific archive orchestration.
+- `polarsteps_config.py`: Polarsteps endpoints, API version and weather mappings.
+- `polarsteps_utils.py`: Polarsteps login, API access, snapshots and media downloads.
+- `polarsteps_parsers.py`: normalize Polarsteps API data into the shared archive schema.
 - `common_profiles.py`: shared profile-file parsing and default settings.
 - `output_safety.py`: shared `--force` cleanup and path safety checks.
 - `common_archive.py`: write portable per-profile and per-trip JSON manifests.
@@ -24,7 +27,6 @@ This document describes the current data flow and generated outputs.
 - `findpenguins_parsers.py`: profile, trip, insight and footprint extraction.
 - `common_writers.py`: shared XML/GPX serialization and route-map WebP images.
 - `common_elevation.py`: OpenTopoData SRTM90m enrichment for GPX track-point elevations.
-- `findpenguins_archive.py`, `findpenguins_writers.py`, `findpenguins_elevation.py`: compatibility imports for the shared modules.
 - `aventures_writers.py`: Pelican RST articles and country maps.
 - `common_utils.py`: shared XML, text and image helpers.
 
@@ -71,10 +73,11 @@ See the [README](../README.md) output examples for the full layouts.
 
 The converter writes Pelican articles under `--content` (default
 `../website/content/articles/findpenguins`): `<content>/<uid>/<trip-slug>/trip.rst` and one
-`footprint_N/footprint.rst` per footprint. Media and maps are copied beside the sources. The trip
-article has `Category: findpenguins`, `Template: findpenguins_trip` and `Date` (first footprint), `EndDate` (last footprint plus its nights) and `Transport` metadata; trip tags are `findpenguins`, `trip` and the countries, and footprint tags include `footprint`; the
-website builds its trip index and book from these articles without generating standalone
-footprint pages.
+`footprint_N/footprint.rst` per footprint. Media and maps are copied beside the sources. The
+`--category` option (default `findpenguins`) sets the trip category and the first service tag on
+trip and footprint articles. The trip article uses the `findpenguins_trip` template and includes
+`Date` (first footprint), `EndDate` (last footprint plus its nights) and `Transport` metadata;
+generated articles use the owner's name as `Author`.
 
 All downloaded and generated images are stored as lossless WebP; videos are untouched.
 

@@ -19,7 +19,7 @@ def fetch_elevations(points, source="opentopodata"):
     @throws RuntimeError When no data could be retrieved after retries.
     """
 
-    print("Downloading elevations...")
+    print("  - Downloading elevations...")
 
     batch = 100
     max_retries = 5

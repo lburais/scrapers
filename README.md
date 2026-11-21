@@ -30,6 +30,9 @@ Le projet est structuré de manière hautement modulaire :
 ├── scrapers.py              # Point d'entrée CLI et sélection du programme
 ├── findpenguins.py          # Orchestrateur FindPenguins
 ├── polarsteps.py            # Archive Polarsteps par API et connexion automatique ou interactive
+├── polarsteps_config.py     # Endpoints, version de l'API et météo Polarsteps
+├── polarsteps_utils.py      # Connexion, accès API et téléchargement des médias
+├── polarsteps_parsers.py    # Normalisation des trajets et parsing des données API
 ├── aventures2rst.py         # Conversion des archives en articles Pelican
 ├── reminder.py              # Préparation d'un export Apple Reminders via rem
 ├── reminders2rst.py         # Conversion des rappels en articles Pelican
@@ -145,12 +148,13 @@ l'emplacement de l'exécutable.
 ```bash
 scrapers findpenguins profiles.json [--output DIR] [-t SLUG] [--force] [--skip]
 scrapers polarsteps profiles.json [--output DIR] [-t SLUG] [--force] [--skip]
-scrapers aventures2rst --output DIR [--content DIR] [-t SLUG]
+scrapers aventures2rst --output DIR [--content DIR] [-t SLUG] [--category CATEGORY]
 ```
 
 - `profiles.json` : fichier de profils (obligatoire).
 - `--output` : archive JSON, XML, GPX et médias (défaut `output` pour les deux programmes).
 - `--content` : destination des articles Pelican du convertisseur (défaut `../website/content/articles/findpenguins`).
+- `--category` : catégorie des articles de voyage et premier tag de service (défaut `findpenguins`, par exemple `polarsteps`).
 - `-t`, `--trip` : ne scraper que le voyage portant ce slug (défaut : tous).
 - `--force` : vider entièrement `--output` avant de scraper, y compris les archives d'autres services qui s'y trouvent. Avec `--trip`, seuls le dossier et le GPX de ce voyage sont supprimés pour chaque profil. Les articles Pelican ne sont pas supprimés.
 - `--skip` : utiliser les captures enregistrées ; désactive `--force` s'il est aussi fourni.
@@ -177,7 +181,7 @@ les anciens articles ; retirer séparément les articles périmés si nécessair
 
 ```bash
 scrapers polarsteps profiles.json --output polarsteps-output
-scrapers aventures2rst --output polarsteps-output --content ../website/content/articles/findpenguins
+scrapers aventures2rst --output polarsteps-output --content ../website/content/articles/polarsteps --category polarsteps
 ```
 
 `profiles.json` est le même fichier que pour FindPenguins et permet de traiter tous ses comptes
@@ -380,7 +384,7 @@ content/
             └── *.webp, *.mp4
 ```
 
-Le voyage porte les métadonnées `Date` (première étape), `EndDate` (dernière étape plus ses nuits), `Transport` (ex. `bus 682 km; flight 581 km`) et `Category: findpenguins`; ses tags sont `findpenguins`, `trip` et les pays. Les étapes ont le tag `footprint`. Toutes les images (photos, couvertures, avatars, cartes) sont converties en WebP sans perte; les vidéos sont conservées telles quelles.
+Le voyage porte les métadonnées `Date` (première étape), `EndDate` (dernière étape plus ses nuits), `Transport` (ex. `bus 682 km; flight 581 km`) et `Category` (défaut `findpenguins`, configurable avec `--category`); son premier tag reprend la catégorie, suivi de `trip` et des pays. Les articles de voyage et d'étape définissent `Author` avec le nom du propriétaire. Les étapes ont également le tag `footprint`. Toutes les images (photos, couvertures, avatars, cartes) sont converties en WebP sans perte; les vidéos sont conservées telles quelles.
 
 Les deux scrapers téléchargent les drapeaux FlagCDN en WebP 64 × 48 dans
 `output/flags/` ainsi qu'une table `codes.json` associant chaque nom anglais à

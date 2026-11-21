@@ -22,21 +22,39 @@ module-private helpers. Docstrings in the source provide further details.
 
 | Function | Purpose |
 |---|---|
+| `scrape(username, output="output", trip_slug=None, skip=False, credentials=None, sizes=None)` | Archive a profile via the API or saved snapshots. |
+| `scrape_profiles(profiles_file, output="output", trip_slug=None, skip=False, force=False)` | Archive Polarsteps accounts from a shared profiles file; force clears the archive or selected trips unless skip is enabled. |
+
+## `polarsteps_config.py` — Polarsteps configuration
+
+| Constant | Purpose |
+|---|---|
+| `API_URL`, `SITE_URL`, `MEDIA_URL`, `API_VERSION` | Polarsteps service endpoints and API version. |
+| `WEATHER_ICONS` | Mapping of known weather codes to icons. |
+
+## `polarsteps_utils.py` — Polarsteps access and downloads
+
+| Function | Purpose |
+|---|---|
 | `login(username=None, password=None)` | Sign in automatically with credentials or interactively, returning an in-memory session cookie. |
 | `_restrict_login_requests(route)` / `_remember_token(context)` | Restrict automated login to Polarsteps hosts and read the browser cookie. |
 | `load_profile(path)` | Read and validate a legacy private JSON login profile; the CLI uses the shared profiles file instead. |
-| `api_get(session, endpoint)` | Fetch one Polarsteps API v62 object. |
+| `api_get(session, endpoint)` | Fetch one Polarsteps API object. |
 | `source_data(path, skip, fetch)` | Save an API response or load an existing snapshot. |
+| `_require_list(data, *names)` | Validate a required API list. |
+| `media_url(value)` / `download_media(item, directory, stem, kind, skip)` | Resolve and archive media, with explicit thumbnail fallback for photos. |
+
+## `polarsteps_parsers.py` — Polarsteps data parsing
+
+| Function | Purpose |
+|---|---|
 | `slug_for_trip(trip)` / `local_date(value, timezone_id=None)` | Prefix normalized trip slugs with their numeric ID and normalize local calendar dates. |
 | `description_text(value)` | Convert HTML descriptions and links to text and references. |
-| `media_url(value)` / `download_media(item, directory, stem, kind, skip)` | Resolve and archive media, with explicit thumbnail fallback for photos. |
 | `_coordinates(location)` / `_track_points(source)` / `_decode_route(route)` | Read tracker locations or decode route polylines. |
-| `seed_gpx(path, source)` | Create the trip GPX track before adding waypoints. |
-| `_require_list(data, *names)` | Validate a required API list. |
+| `seed_gpx(path, source)` | Create mode-tagged GPX tracks from encoded route segments, falling back to tracker points. |
+| `transport_distances_from_gpx(path, transports)` | Fill integer kilometer distances from GPX tracks grouped by their `transport_mode` extension. |
 | `weather_icon(condition)` | Convert known weather codes to icons; warn and preserve unknown values. |
 | `normalize_trip(source, username, slug, profile_dir, skip, country_codes=None)` | Map a trip and its steps to the shared archive schema. |
-| `scrape(username, output="output", trip_slug=None, skip=False, credentials=None, sizes=None)` | Archive a profile via the API or saved snapshots. |
-| `scrape_profiles(profiles_file, output="output", trip_slug=None, skip=False, force=False)` | Archive Polarsteps accounts from a shared profiles file; force clears the archive or selected trips unless skip is enabled. |
 
 ## `common_profiles.py` — shared profile loading
 
@@ -50,7 +68,7 @@ module-private helpers. Docstrings in the source provide further details.
 
 | Function | Purpose |
 |---|---|
-| `convert(output, content, trip_slug=None)` | Rebuild trip and footprint RST articles from `profile.json` / `trip.json` manifests. |
+| `convert(output, content, trip_slug=None, category="findpenguins")` | Rebuild trip and footprint RST articles from manifests, using the category as the trip category and first service tag. |
 
 ## `reminder.py` / `reminders2rst.py` — Apple Reminders
 
@@ -95,9 +113,6 @@ module-private helpers. Docstrings in the source provide further details.
 | `fetch_elevations(points, source="opentopodata")` | Fill `ele` for points (batches of 100, exponential backoff on HTTP 429). |
 | `smooth(points)` | Savitzky-Golay smoothing of `ele` in place (skipped under 11 points). |
 | `gain_loss(points)` | Cumulative `(gain, loss)` along a track. |
-
-The former `findpenguins_archive`, `findpenguins_writers`, and `findpenguins_elevation`
-modules re-export their shared implementations for compatibility.
 
 ## `findpenguins_parsers.py` — page parsing
 

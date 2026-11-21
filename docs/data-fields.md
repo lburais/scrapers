@@ -249,14 +249,19 @@ Trip `name`/`display_name`, `summary`, dates, `total_km` and cover photo populat
 Each nondeleted `all_steps` or `steps` entry with `type` equal to `1` supplies a footprint's title, dates, coordinates,
 locality, country, weather, temperature, description links and ordered media. FlagCDN paths are
 selected by country code or an unambiguous English name and written to the trip and footprint
-flags. Available route segment transport modes populate `transports`; missing transport distances
-remain empty. The original API objects remain in `api-user.json` and `api-trip.json`.
+flags. Route segments with usable geometry populate `transports`; their GPX tracks carry the
+`transport_mode` extension, and their distances are summed by mode and rounded to whole kilometers.
+Modes without a matching usable track retain an empty distance. The original API objects remain in
+`api-user.json` and `api-trip.json`.
 Numeric values inside the normalized Polarsteps trip manifest are strings, matching
-FindPenguins; the manifest's `version` remains the number `1`.
+FindPenguins; trip distance and footprint temperature are rounded to whole numbers before
+stringification. Polarsteps GPX elevation values are also rounded to whole meters. The manifest's
+`version` remains the number `1`.
 Known `weather_condition` codes are converted to weather emoji; unrecognized codes are
 preserved with a warning. Raw API snapshots retain the original codes.
 
-The GPX track uses `zelda_steps`, falling back to encoded `route_segments` when no tracker points
-are available. Polarsteps attempts track elevation enrichment through OpenTopoData. See
+The GPX uses encoded `route_segments` as separate, mode-tagged tracks when available, falling back
+to `zelda_steps` when no usable route segment exists. Polarsteps attempts track elevation
+enrichment through OpenTopoData. See
 [implementation.md](./implementation.md#polarsteps-scraping-and-serialization-flow) for
 authentication, media, snapshot and replay behavior.

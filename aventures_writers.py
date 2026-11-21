@@ -337,7 +337,7 @@ def _trip_date_range(footprints):
     return min(starts).isoformat(), max(ends).isoformat()
 
 
-def build_trip_rst(content_dir, trip_dir, user_data, trip, footprints, sizes):
+def build_trip_rst(content_dir, trip_dir, user_data, trip, footprints, sizes, category="findpenguins"):
     """! @brief Build Pelican articles (reStructuredText) for a trip and its footprints.
     @param content_dir Pelican articles source directory.
     @param sizes Maximum pixel size of the "small" and "large" image variants.
@@ -397,7 +397,7 @@ def build_trip_rst(content_dir, trip_dir, user_data, trip, footprints, sizes):
         if flag and flag.startswith("flags/"):
             flag_path = os.path.join(os.path.dirname(profile_dir), flag)
             _copy_media([flag_path], os.path.join(content_dir, "flags"))
-    trip_tags = ["findpenguins", "trip"]
+    trip_tags = [category, "trip"]
     known_tags = {tag.casefold() for tag in trip_tags}
     insight_tags = [
         str(country.get("name", "")).strip()
@@ -421,8 +421,8 @@ def build_trip_rst(content_dir, trip_dir, user_data, trip, footprints, sizes):
             Date=start_date,
             EndDate=end_date,
             Slug=f"{uid}-{trip_slug}",
-            Category="findpenguins",
-            Template="findpenguins_trip",
+            Category=category,
+            Template="trip",
             Tags=", ".join(trip_tags),
             Transport="; ".join(transport_details),
             Summary=trip.get("description") or trip.get("period", ""),
@@ -432,6 +432,7 @@ def build_trip_rst(content_dir, trip_dir, user_data, trip, footprints, sizes):
             Countries=countries,
             CountryFlags=country_flags,
             Description=trip.get("description", ""),
+            Author=user_data.get("name") or uid,
             Owner=user_data.get("name") or uid,
             TripImage=trip_image,
             TripMap=maps.get("route_map", ""),
@@ -454,7 +455,8 @@ def build_trip_rst(content_dir, trip_dir, user_data, trip, footprints, sizes):
                 Date=footprint.get("date", ""),
                 Slug=f"{uid}-{trip_slug}-etape-{index}",
                 Category="footprint",
-                Tags=", ".join(part for part in ("findpenguins", "footprint", country) if part),
+                Tags=", ".join(part for part in (category, "footprint", country) if part),
+                Author=user_data.get("name") or uid,
                 Summary=location or footprint.get("weather", ""),
                 **_footprint_gpx_fields(footprint, footprint_dir, sizes, trip.get("days", "")),
             ),
