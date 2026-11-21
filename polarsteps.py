@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 from urllib.parse import quote
+import xml.etree.ElementTree as ET
 
 import requests
 
@@ -50,7 +51,7 @@ def scrape(username, output="output", trip_slug=None, skip=False, credentials=No
     login username/password pair. Without credentials, login is interactive.
     Skip mode reads snapshots and existing media without login; elevation
     enrichment may still access the network.
-    `sizes` overrides the shared manifest size settings.
+    `sizes` overrides the shared image size and map settings.
     """
     validate_component(username)
     if trip_slug:
@@ -92,7 +93,8 @@ def scrape(username, output="output", trip_slug=None, skip=False, credentials=No
             avatar = download_media({"path": picture, "large_thumbnail_path": profile.get("profile_image_thumb_path")},
                                     profile_dir, f"{username}_profile", "photo", skip)
             user["picture"] = os.path.relpath(avatar, profile_dir)
-        write_profile(str(profile_dir), user, {**DEFAULT_SETTINGS, **(sizes or {})})
+        settings = {**DEFAULT_SETTINGS, **(sizes or {})}
+        write_profile(str(profile_dir), user, settings)
         trips = []
         for entry, slug in selected:
             trip_id = str(entry["id"])
@@ -117,9 +119,19 @@ def scrape(username, output="output", trip_slug=None, skip=False, credentials=No
                 str(gpx), user, trip, trip["footprints"],
                 enrich_elevation=True, integer_elevation=True, update_footprint_altitudes=True,
             )
-            route_map = save_trip_route_map(str(gpx), trip["footprints"], str(trip_dir / "map_trip.png"))
-            if route_map:
-                trip["route_map"] = os.path.relpath(route_map, profile_dir)
+            for key, filename, background, bubbles in (
+                ("route_map", "map_trip.png", settings["map_background"], settings["footprint_bubbles"]),
+                ("satellite_map", "satellite_trip.png", "satellite", True),
+            ):
+                try:
+                    route_map = save_trip_route_map(
+                        str(gpx), trip["footprints"], str(trip_dir / filename),
+                        background=background, show_footprint_bubbles=bubbles,
+                    )
+                    if route_map:
+                        trip[key] = os.path.relpath(route_map, profile_dir)
+                except (OSError, ET.ParseError, ValueError, requests.RequestException) as exc:
+                    print(f"  - WARNING: unable to create {filename} for {trip['title']}: {exc}")
             write_trip(str(root), str(trip_dir), _stringify_trip_numbers(trip))
             trips.append(trip)
         xml = profile_dir / (username + ".xml")

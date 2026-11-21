@@ -57,7 +57,7 @@ For profile id `<uid>`, the primary archive is written under `--output`:
 - `<output>/<uid>/<trip-slug>.gpx`: route and footprint waypoints.
 - `<output>/profiles.xml`: merged index when more than one profile is processed.
 - `<output>/<uid>/<trip-slug>/`: trip image, footprint photos/videos and `map_trip.webp`
-  when a valid route is available. FindPenguins also attempts `satellite_trip.webp`.
+  when a valid route is available. Both services also attempt `satellite_trip.webp`.
 
 FindPenguins saves the profile page as `<output>/<uid>/page-<sha256>.html`, and trip and
 footprint pages in the trip directory using the same naming scheme. Each footprint's popup data
@@ -82,8 +82,8 @@ generated articles use the owner's name as `Author`.
 All downloaded and generated images are stored as lossless WebP; videos are untouched.
 
 Route maps are 1200×800 WebP images with a white route line. The default background is transparent;
-`satellite` and `street` backgrounds use Esri's export service for FindPenguins. Footprint
-bubbles are opt-in for the FindPenguins main map; Polarsteps uses a transparent map without them.
+`satellite` and `street` backgrounds use Esri's export service for both services. Footprint
+bubbles are opt-in for the main map; the separate satellite map always includes them.
 Trips without a valid GPX track do not get a route map.
 
 ## Design Decisions

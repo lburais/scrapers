@@ -285,8 +285,8 @@ facultative. Le fichier est ignoré par Git à la racine du dépôt ; protégez-
 | `footprint_bubbles` | `false` | Bulles numérotées des étapes sur `map_trip.webp`. |
 
 `small_size` et `large_size` sont enregistrés dans les manifestes des deux
-services pour la conversion. `map_background` et `footprint_bubbles` ne
-s'appliquent qu'aux cartes FindPenguins.
+services pour la conversion. `map_background` et `footprint_bubbles` configurent
+la carte principale des deux services.
 
 ---
 
@@ -349,7 +349,8 @@ polarsteps-output/
     └── 42-aventure/                   # Slug préfixé par l'identifiant du voyage
         ├── trip.json                  # Manifeste du voyage et des étapes
         ├── api-trip.json              # Réponse API complète du voyage
-        ├── map_trip.webp              # Carte transparente, si trace valide
+        ├── map_trip.webp              # Carte principale, si trace valide
+        ├── satellite_trip.webp        # Carte satellite, si générée
         ├── cover_trip.webp            # Couverture, si disponible
         ├── step-<id-etape>-<id-media>.webp # Photo d'étape
         └── step-<id-etape>-<id-media>.<ext> # Vidéo d'étape
@@ -357,7 +358,7 @@ polarsteps-output/
 
 Le nom d'une vidéo conserve son extension valide, ou utilise `.mp4` par
 défaut. Les deux fichiers `api-*.json` sont les captures relues avec `--skip` ;
-Polarsteps ne crée pas de captures HTML ni de carte satellite.
+Polarsteps ne crée pas de captures HTML.
 
 Dans les deux archives, `profile.json` et `trip.json` sont les manifestes
 normalisés utilisés par le convertisseur, distincts des captures de la source.
@@ -409,7 +410,7 @@ Les articles conservent l'image originale et ajoutent des variantes redimensionn
 
 Les cartes de route mesurent 1200×800 pixels. `satellite_trip.webp` utilise toujours
 un fond satellite Esri et des bulles numérotées pour les étapes ; elle nécessite
-un accès réseau et n'est générée que pour FindPenguins. En cas d'échec, la carte
+un accès réseau pour les deux services. En cas d'échec, la carte
 principale reste disponible. Un voyage sans trace GPX valide n'a pas de carte de route.
 
 ---

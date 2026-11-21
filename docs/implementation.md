@@ -35,8 +35,8 @@ An optional `settings` entry configures the rest:
 |---------|----------|
 | `small_size` | Max side in px of profile/companion pictures (stored in place of the original); default `128`. |
 | `large_size` | Max side in px of maps, the trip cover and `_thumb` photos; default `1600`. |
-| `map_background` | FindPenguins route-map background: `transparent` (default), `satellite`, or `street`. |
-| `footprint_bubbles` | Draw numbered footprint locations on the FindPenguins main route map; default `false`. |
+| `map_background` | Main route-map background: `transparent` (default), `satellite`, or `street`. |
+| `footprint_bubbles` | Draw numbered footprint locations on the main route map; default `false`. |
 
 Image size settings are recorded in both services' profile manifests for the converter.
 
