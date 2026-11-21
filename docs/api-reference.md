@@ -173,7 +173,7 @@ module-private helpers. Docstrings in the source provide further details.
 | `distance_meters(lat1, lon1, lat2, lon2)` | Great-circle distance in meters. |
 | `find_closest_trackpoint(waypoint, track_points)` | Nearest track point to a waypoint. |
 | `footprint_to_waypoint(footprint)` | Footprint to GPX `<wpt>` element. |
-| `build_trip_gpx(gpx_path, user_data, trip, footprints, enrich_elevation=True)` | Build/update the trip GPX, optionally enriching track elevations. |
+| `build_trip_gpx(gpx_path, user_data, trip, footprints, enrich_elevation=True, integer_elevation=False, update_footprint_altitudes=False)` | Build/update the trip GPX, optionally enriching track elevations and filling missing footprint altitudes. |
 | `build_user_xml(user_data, trips)` | Build the per-profile XML index. |
 | `build_merged_xml(profiles_data)` | Build the XML index merging several profiles. |
 | `_mercator_coordinates(lon, lat)` | Project to Web Mercator meters. |

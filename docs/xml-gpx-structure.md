@@ -113,6 +113,7 @@ Waypoint extensions (`<wpt><extensions>`) may include:
 - `<weather>`
 - `<temperature>`
 - `<overnights>`
+- `<altitude>`: waypoint elevation when available, using footprint altitude in preference to the track
 - `<flag>`
 - `<country>`
 - `<city>`

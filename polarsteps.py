@@ -115,7 +115,7 @@ def scrape(username, output="output", trip_slug=None, skip=False, credentials=No
             trip["transports"] = transport_distances_from_gpx(gpx, trip["transports"])
             build_trip_gpx(
                 str(gpx), user, trip, trip["footprints"],
-                enrich_elevation=True, integer_elevation=True,
+                enrich_elevation=True, integer_elevation=True, update_footprint_altitudes=True,
             )
             route_map = save_trip_route_map(str(gpx), trip["footprints"], str(trip_dir / "map_trip.png"))
             if route_map:

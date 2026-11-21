@@ -112,7 +112,8 @@ See [`xml-gpx-structure.md`](./xml-gpx-structure.md) for the serialized structur
 
 Originals are kept and resized lossless WebP variants (never upscaled) are created next to them.
 Companions are represented by their profile picture (`<uid>/<uid>_profile_*.webp`, downloaded once
-and shared by all trips), shrunk in place to `small_size`. `TripImage` (`cover_trip.webp`),
+and shared by all trips), shrunk in place to `small_size`. An owner's companion UID is matched
+case-insensitively and uses the profile UID's directory casing. `TripImage` (`cover_trip.webp`),
 `TripMap` (`map_trip.webp`), `TripSatelliteMap` (`satellite_trip.webp`) and `map_country.webp`
 are shrunk in place to `large_size`. Footprint photos keep the original in `Photo`; the theme
 derives the `_thumb` variant (`large_size`) from each name for thumbnails and the carousel.

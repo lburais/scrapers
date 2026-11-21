@@ -331,6 +331,7 @@ def normalize_trip(source, username, slug, profile_dir, skip, country_codes=None
             "weather": weather_icon(step.get("weather_condition")),
             "temperature": _round_integer(step["weather_temperature"])
             if step.get("weather_temperature") is not None else "",
+            "altitude": "",
             "overnights": max(0, (datetime.fromisoformat(end_day) - datetime.fromisoformat(day)).days) if day and end_day else "",
             "photos": [], "videos": [], "gpx": [], "pdf": [], "references": references,
         }

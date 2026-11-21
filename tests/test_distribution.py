@@ -269,5 +269,164 @@ with tempfile.TemporaryDirectory() as directory:
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
+class CompanionPictureTests(unittest.TestCase):
+    def test_owner_picture_uses_profile_directory_case(self):
+        from PIL import Image
+
+        from aventures2rst import convert
+
+        for owner_uid in ("Dburais", "dburais"):
+            with self.subTest(owner_uid=owner_uid), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                profile_dir = root / "archive" / "dburais"
+                trip_dir = profile_dir / "journey"
+                trip_dir.mkdir(parents=True)
+                (profile_dir / "profile.json").write_text(json.dumps({
+                    "version": 1, "user": {"uid": "dburais", "name": "Owner"},
+                    "sizes": {"small": 128, "large": 1600},
+                }), encoding="utf-8")
+                for picture in ("owner.webp", "buddy.webp"):
+                    Image.new("RGB", (4, 4), "red").save(profile_dir / picture)
+                (trip_dir / "trip.json").write_text(json.dumps({
+                    "version": 1, "trip": {
+                        "slug": "journey", "title": "Journey", "footprints": [],
+                        "companions": [
+                            {"uid": owner_uid, "name": "Owner", "picture": "owner.webp"},
+                            {"uid": "Buddy", "name": "Buddy", "picture": "buddy.webp"},
+                        ],
+                    },
+                }), encoding="utf-8")
+
+                content = root / "content"
+                convert(str(root / "archive"), str(content), category="polarsteps")
+                article = (content / "dburais" / "journey" / "trip.rst").read_text(encoding="utf-8")
+                self.assertIn(":Companions: Owner|../owner.webp;Buddy|../../Buddy/buddy.webp", article)
+                self.assertTrue((content / "dburais" / "owner.webp").is_file())
+                self.assertTrue((content / "Buddy" / "buddy.webp").is_file())
+
+
+class PolarstepsFootprintAltitudeTests(unittest.TestCase):
+    def test_enriched_elevation_is_saved_in_manifest_and_article(self):
+        import xml.etree.ElementTree as ET
+        from unittest.mock import patch
+
+        from aventures2rst import convert
+        from common_utils import gpx_tag
+        from polarsteps import scrape
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = root / "archive"
+            profile_dir = archive / "traveller"
+            trip_dir = profile_dir / "42-journey"
+            trip_dir.mkdir(parents=True)
+            (profile_dir / "api-user.json").write_text(json.dumps({
+                "first_name": "Traveller",
+                "alltrips": [{"id": 42, "slug": "journey"}],
+            }), encoding="utf-8")
+            (trip_dir / "api-trip.json").write_text(json.dumps({
+                "id": 42,
+                "steps": [
+                    {"id": 1, "type": 1},
+                    {"id": 2, "type": 1, "location": {"lat": 45, "lon": 4}},
+                    {"id": 3, "type": 1, "location": {"lat": 46, "lon": 4}},
+                    {"id": 4, "type": 1, "location": {"lat": 47, "lon": 4}},
+                ],
+                "zelda_steps": [
+                    {"location": {"lat": 45, "lon": 4}},
+                    {"location": {"lat": 46, "lon": 4}},
+                    {"location": {"lat": 47, "lon": 4}},
+                ],
+            }), encoding="utf-8")
+
+            def elevations(points):
+                points[0]["ele"] = 123.6
+                points[1]["ele"] = 0
+
+            with patch("polarsteps.download_country_flags", return_value={}), \
+                 patch("polarsteps.save_trip_route_map", return_value=None), \
+                 patch("common_writers.fetch_elevations", side_effect=elevations):
+                scrape("traveller", str(archive), skip=True)
+
+            trip = json.loads((trip_dir / "trip.json").read_text(encoding="utf-8"))["trip"]
+            self.assertEqual(
+                [footprint["altitude"] for footprint in trip["footprints"]],
+                ["", "124", "0", ""],
+            )
+            gpx = ET.parse(profile_dir / "42-journey.gpx").getroot()
+            self.assertEqual(
+                [waypoint.findtext(gpx_tag("ele")) for waypoint in gpx.findall(gpx_tag("wpt"))],
+                ["124", "0", None],
+            )
+            with patch("aventures_writers.save_full_country_map", return_value=None), \
+                 patch("aventures_writers.shrink_image"):
+                convert(str(archive), str(root / "content"), category="polarsteps")
+            article = (root / "content" / "traveller" / "42-journey" / "footprint_2" / "footprint.rst")
+            self.assertIn(":Ele: 124", article.read_text(encoding="utf-8"))
+
+
+class WaypointAltitudeTests(unittest.TestCase):
+    def test_existing_altitude_is_written_without_a_track(self):
+        import xml.etree.ElementTree as ET
+
+        from common_utils import gpx_tag
+        from common_writers import build_trip_gpx
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "trip.gpx"
+            build_trip_gpx(
+                str(path), {}, {},
+                [{"lat": "45", "lon": "4", "altitude": 0}],
+                enrich_elevation=False,
+            )
+            waypoint = ET.parse(path).getroot().find(gpx_tag("wpt"))
+            self.assertEqual(waypoint.findtext(gpx_tag("ele")), "0")
+            self.assertEqual(
+                waypoint.findtext(f"{gpx_tag('extensions')}/{gpx_tag('altitude')}"), "0",
+            )
+
+    def test_track_elevation_fills_missing_altitude_without_overwriting_existing(self):
+        import xml.etree.ElementTree as ET
+
+        from common_utils import gpx_tag
+        from common_writers import build_trip_gpx
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "trip.gpx"
+            root = ET.Element(gpx_tag("gpx"))
+            segment = ET.SubElement(ET.SubElement(root, gpx_tag("trk")), gpx_tag("trkseg"))
+            point = ET.SubElement(segment, gpx_tag("trkpt"), lat="45", lon="4")
+            ET.SubElement(point, gpx_tag("ele")).text = "123.6"
+            ET.SubElement(segment, gpx_tag("trkpt"), lat="46", lon="4")
+            ET.ElementTree(root).write(path)
+            footprints = [
+                {"lat": "45", "lon": "4", "date": "2024-01-01"},
+                {"lat": "45", "lon": "4", "altitude": 50},
+                {"lat": "46", "lon": "4"},
+            ]
+            build_trip_gpx(
+                str(path), {}, {}, footprints,
+                enrich_elevation=False, integer_elevation=True,
+            )
+            self.assertNotIn("altitude", footprints[0])
+            waypoints = ET.parse(path).getroot().findall(gpx_tag("wpt"))
+            for waypoint, expected in zip(waypoints, ("124", "50")):
+                self.assertEqual(waypoint.findtext(gpx_tag("ele")), expected)
+                self.assertEqual(
+                    waypoint.findtext(f"{gpx_tag('extensions')}/{gpx_tag('altitude')}"), expected,
+                )
+            self.assertIsNone(waypoints[2].findtext(gpx_tag("ele")))
+            self.assertIsNone(
+                waypoints[2].findtext(f"{gpx_tag('extensions')}/{gpx_tag('altitude')}"),
+            )
+            build_trip_gpx(
+                str(path), {}, {}, footprints,
+                enrich_elevation=False, integer_elevation=True, update_footprint_altitudes=True,
+            )
+            self.assertEqual(footprints[0]["altitude"], 124)
+            self.assertEqual(footprints[1]["altitude"], 50)
+            self.assertNotIn("altitude", footprints[2])
+
+
 if __name__ == "__main__":
     unittest.main()

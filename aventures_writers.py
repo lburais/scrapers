@@ -378,7 +378,10 @@ def build_trip_rst(content_dir, trip_dir, user_data, trip, footprints, sizes, ca
             continue
         if not picture.startswith(("http://", "https://")):
             # The companion is represented by its profile picture, stored once under its profile folder.
-            companion_dir = os.path.join(content_dir, str(companion.get("uid") or uid).strip())
+            companion_uid = str(companion.get("uid") or uid).strip()
+            if companion_uid.casefold() == uid.casefold():
+                companion_uid = uid
+            companion_dir = os.path.join(content_dir, companion_uid)
             picture_path = os.path.normpath(os.path.join(profile_dir, picture))
             name_on_disk = _copy_media([picture_path], companion_dir)[0].replace("%20", " ")
             small_path = shrink_image(os.path.join(companion_dir, name_on_disk), sizes["small"])

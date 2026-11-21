@@ -128,6 +128,7 @@ def footprint_to_waypoint(footprint, integer_elevation=False):
         "weather": footprint.get("weather", ""),
         "temperature": footprint.get("temperature", ""),
         "overnights": footprint.get("overnights", ""),
+        "altitude": altitude,
         "flag": footprint.get("flag", ""),
         "country": footprint.get("country", ""),
         "city": footprint.get("city", ""),
@@ -161,7 +162,8 @@ def footprint_to_waypoint(footprint, integer_elevation=False):
     return waypoint
 
 
-def build_trip_gpx(gpx_path, user_data, trip, footprints, enrich_elevation=True, integer_elevation=False):
+def build_trip_gpx(gpx_path, user_data, trip, footprints, enrich_elevation=True, integer_elevation=False,
+                   update_footprint_altitudes=False):
     """! @brief Build or update one trip GPX with metadata and footprint waypoints.
     @param gpx_path Output GPX file path.
     @param user_data Dictionary of profile-level fields.
@@ -169,6 +171,7 @@ def build_trip_gpx(gpx_path, user_data, trip, footprints, enrich_elevation=True,
     @param footprints List of trip footprint dictionaries.
     @param enrich_elevation Whether to query the elevation service for track points.
     @param integer_elevation Round GPX elevations to whole meters when true.
+    @param update_footprint_altitudes Fill missing footprint altitudes from matched track elevations.
     Waypoints without altitude inherit the nearest track point's elevation when available.
     @return None
     """
@@ -279,7 +282,7 @@ def build_trip_gpx(gpx_path, user_data, trip, footprints, enrich_elevation=True,
             continue
 
         print(f"    - waypoint[{footprint.get('title', '')}] : {footprint.get('lat', '')}, {footprint.get('lon', '')}")
-        waypoints.append(waypoint)
+        waypoints.append((waypoint, footprint))
 
     track_elements = list(root.findall(gpx_tag("trk")))
 
@@ -333,7 +336,7 @@ def build_trip_gpx(gpx_path, user_data, trip, footprints, enrich_elevation=True,
             except ValueError:
                 print(f"  - WARNING: invalid track point elevation: {elevation!r}")
 
-    for waypoint in waypoints:
+    for waypoint, footprint in waypoints:
         closest = find_closest_trackpoint(waypoint, track_points)
         if not closest:
             continue
@@ -342,6 +345,8 @@ def build_trip_gpx(gpx_path, user_data, trip, footprints, enrich_elevation=True,
             waypoint_elevation = ET.Element(gpx_tag("ele"))
             waypoint_elevation.text = _format_elevation(closest["ele"], integer_elevation)
             waypoint.insert(0, waypoint_elevation)
+            if update_footprint_altitudes:
+                footprint["altitude"] = int(waypoint_elevation.text) if integer_elevation else closest["ele"]
 
         if closest.get("time"):
             waypoint_time = waypoint.find(gpx_tag("time"))
@@ -352,6 +357,10 @@ def build_trip_gpx(gpx_path, user_data, trip, footprints, enrich_elevation=True,
         waypoint_extensions = waypoint.find(gpx_tag("extensions"))
         if waypoint_extensions is None:
             waypoint_extensions = ET.SubElement(waypoint, gpx_tag("extensions"))
+
+        waypoint_elevation = waypoint.findtext(gpx_tag("ele"))
+        if waypoint_elevation is not None and waypoint_extensions.find("altitude") is None:
+            add_text_element(waypoint_extensions, "altitude", waypoint_elevation, namespace=None)
 
         point_attributes = {
             "lat": f"{closest['lat']:.6f}",
@@ -367,7 +376,7 @@ def build_trip_gpx(gpx_path, user_data, trip, footprints, enrich_elevation=True,
     for track_element in track_elements:
         root.remove(track_element)
 
-    for waypoint in waypoints:
+    for waypoint, _ in waypoints:
         root.append(waypoint)
 
     for track_element in track_elements:

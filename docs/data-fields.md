@@ -217,7 +217,7 @@ Built in [common_writers.py](../common_writers.py) from the data above:
 | Output | Fields |
 |--------|--------|
 | `<profile>.xml` | Profile fields (`uid`, `name`, `bio`, `location`, `website`, `picture`, `email`); per trip `slug`, `title`, `days`, `url`, `gpx`, and companion `uid`/`name`/`picture`. Trip `period`, `km`, `is_current`, route-map path and insight details are omitted. |
-| `<slug>.gpx` | Waypoint: `lat`, `lon`, `name`=title, `desc`=text, `ele`=footprint altitude or closest track elevation, `link`=url; extensions `date`, `day`, `weather`, `temperature`, `overnights`, `flag`, `country`, `city`, `text-private`, repeated `reference`, `photo`, `video`, `gpx`, `pdf`, and matched `point`. Metadata: standard trip `name`, initial `desc`=period, author name/email/website, trip link, and extensions including `start_date`, `slug`, `uid`, `days`, trip details and companions. |
+| `<slug>.gpx` | Waypoint: `lat`, `lon`, `name`=title, `desc`=text, `ele`=footprint altitude or closest track elevation, `link`=url; extensions `date`, `day`, `weather`, `temperature`, `overnights`, `altitude` (matching waypoint elevation), `flag`, `country`, `city`, `text-private`, repeated `reference`, `photo`, `video`, `gpx`, `pdf`, and matched `point`. Metadata: standard trip `name`, initial `desc`=period, author name/email/website, trip link, and extensions including `start_date`, `slug`, `uid`, `days`, trip details and companions. |
 | RST (Pelican) | One `trip.rst` per trip and one `footprint.rst` per footprint. Footprint metadata is based on GPX waypoint fields except `desc`, which is the page body. The export also copies photos, videos, attachments, trip cover/route maps and country maps beside the source pages. |
 
 ### Pelican footprint metadata (`footprint.rst`)
@@ -255,8 +255,9 @@ Modes without a matching usable track retain an empty distance. The original API
 `api-user.json` and `api-trip.json`.
 Numeric values inside the normalized Polarsteps trip manifest are strings, matching
 FindPenguins; trip distance and footprint temperature are rounded to whole numbers before
-stringification. Polarsteps GPX elevation values are also rounded to whole meters. The manifest's
-`version` remains the number `1`.
+stringification. A footprint's `altitude` is the nearest track point's elevation rounded to whole
+meters, or an empty string when unavailable, and matches the GPX waypoint elevation. Polarsteps
+GPX elevation values are also rounded to whole meters. The manifest's `version` remains the number `1`.
 Known `weather_condition` codes are converted to weather emoji; unrecognized codes are
 preserved with a warning. Raw API snapshots retain the original codes.
 
