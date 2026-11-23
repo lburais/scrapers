@@ -159,6 +159,7 @@ def process_profile(
                             os.path.join(trip_dir, filename),
                             background=background,
                             show_footprint_bubbles=bubbles,
+                            footprint_bubble_size=settings.get("footprint_bubble_size", DEFAULT_SETTINGS["footprint_bubble_size"]),
                         )
                         if route_map:
                             trip[key] = os.path.relpath(route_map, output_dir)

@@ -84,6 +84,8 @@ All downloaded and generated images are stored as lossless WebP; videos are unto
 Route maps are 1200×800 WebP images with a white route line. The default background is transparent;
 `satellite` and `street` backgrounds use Esri's export service for both services. Footprint
 bubbles are opt-in for the main map; the separate satellite map always includes them.
+They show the first footprint photo, or its number if no photo is available, and
+the accompanying `.inc` file provides the clickable footprint buttons.
 Trips without a valid GPX track do not get a route map.
 
 ## Design Decisions

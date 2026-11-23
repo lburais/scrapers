@@ -370,6 +370,12 @@ def build_trip_rst(content_dir, trip_dir, user_data, trip, footprints, sizes, ca
                 map_path = os.path.join(profile_dir, map_path)
             maps[key] = _copy_media([map_path], rst_trip_dir)[0]
             shrink_image(os.path.join(rst_trip_dir, os.path.basename(map_path)), sizes["large"])
+            overlay_path = os.path.splitext(map_path)[0] + ".inc"
+            destination_overlay = os.path.join(rst_trip_dir, os.path.basename(overlay_path))
+            if os.path.isfile(overlay_path):
+                _copy_media([overlay_path], rst_trip_dir)
+            elif os.path.isfile(destination_overlay):
+                os.remove(destination_overlay)
 
     companion_images = []
     for companion in trip.get("companions") or []:

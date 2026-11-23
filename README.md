@@ -16,7 +16,7 @@ Les scrapers authentifient et téléchargent les données et médias, puis gén�
   - Enrichissement optionnel des altitudes des traces via des API topographiques externes (SRTM90m).
 - **Export Pelican (reStructuredText) :**
   - Génération d'un fichier `trip.rst` par voyage et d'un `footprint.rst` par étape. Il n'y a pas de page RST de profil.
-  - Chaque voyage avec une trace valide peut inclure une carte de route WebP. FindPenguins permet de choisir un fond et des bulles numérotées ; Polarsteps utilise un fond transparent.
+  - Chaque voyage avec une trace valide peut inclure une carte de route WebP, avec fond configurable et bulles de photos pour les étapes.
   - Métadonnées Pelican en champ reStructuredText, avec une image de la carte du pays enregistrée dans le dossier de chaque *footprint* géolocalisé.
   - Les métadonnées des voyages alimentent l'index généré par le site Pelican; les sources contiennent les photos, vidéos, cartes et références des étapes.
 
@@ -72,7 +72,7 @@ python -m pip install -e .
 
 Les dépendances sont déclarées dans `pyproject.toml` ; `pip install -r requirements.txt`
 installe également le projet en mode éditable. L'installation fournit la seule commande
-`scrapers`, avec les sous-commandes `findpenguins`, `polarsteps`, `aventures2rst`, `reminder`
+`scrapers`, avec les sous-commandes `aventures`, `findpenguins`, `polarsteps`, `aventures2rst`, `reminder`
 et `reminders2rst`. On peut aussi utiliser `python -m scrapers` ou, depuis le
 dépôt, `python scrapers.py`. Sans sous-commande, l'aide est affichée.
 
@@ -146,6 +146,7 @@ l'emplacement de l'exécutable.
 ## ⚙️ Utilisation
 
 ```bash
+scrapers aventures profiles.json [--output DIR] [--content DIR] [--force] [--skip]
 scrapers findpenguins profiles.json [--output DIR] [-t SLUG] [--force] [--skip]
 scrapers polarsteps profiles.json [--output DIR] [-t SLUG] [--force] [--skip]
 scrapers aventures2rst --output DIR [--content DIR] [-t SLUG] [--category CATEGORY]
@@ -158,6 +159,13 @@ scrapers aventures2rst --output DIR [--content DIR] [-t SLUG] [--category CATEGO
 - `-t`, `--trip` : ne scraper que le voyage portant ce slug (défaut : tous).
 - `--force` : vider entièrement `--output` avant de scraper, y compris les archives d'autres services qui s'y trouvent. Avec `--trip`, seuls le dossier et le GPX de ce voyage sont supprimés pour chaque profil. Les articles Pelican ne sont pas supprimés.
 - `--skip` : utiliser les captures enregistrées ; désactive `--force` s'il est aussi fourni.
+
+`aventures` collecte d'abord FindPenguins puis Polarsteps, puis convertit les deux
+archives. Les archives sont rangées sous `output/findpenguins` et
+`output/polarsteps`, et les articles sous `../website/content/articles/findpenguins`
+et `../website/content/articles/polarsteps` par défaut. `--output` et `--content`
+remplacent leurs dossiers parents ; `--force` et `--skip` s'appliquent aux deux
+services. Les deux services doivent être présents dans le fichier de profils.
 
 ### FindPenguins
 
@@ -282,7 +290,8 @@ facultative. Le fichier est ignoré par Git à la racine du dépôt ; protégez-
 | `small_size` | `128` | Côté maximal (px) des photos de profil / compagnons (remplacent l'original). |
 | `large_size` | `1600` | Côté maximal (px) des cartes, de la couverture et des photos `_thumb`. |
 | `map_background` | `transparent` | Fond de `map_trip.webp` : `transparent`, `satellite` ou `street` (Esri). |
-| `footprint_bubbles` | `false` | Bulles numérotées des étapes sur `map_trip.webp`. |
+| `footprint_bubbles` | `false` | Bulles des étapes sur `map_trip.webp`. |
+| `footprint_bubble_size` | `48` | Diamètre des bulles en pixels sur la carte d'origine (entier de 1 à 799). |
 
 `small_size` et `large_size` sont enregistrés dans les manifestes des deux
 services pour la conversion. `map_background` et `footprint_bubbles` configurent
@@ -408,8 +417,10 @@ Les articles conservent l'image originale et ajoutent des variantes redimensionn
 | Cartes du voyage et du pays | aucune (`map_trip.webp`, `satellite_trip.webp`, `map_country.webp` en taille `large_size`) | `TripMap`, `TripSatelliteMap`, `map_country.webp` (thème) |
 | Photo d'étape | `_thumb` (taille `large_size`) | `Photo` (original, « Ouvrir la photo »); le thème déduit `_thumb` du nom (vignettes et carrousel) |
 
-Les cartes de route mesurent 1200×800 pixels. `satellite_trip.webp` utilise toujours
-un fond satellite Esri et des bulles numérotées pour les étapes ; elle nécessite
+Les cartes de route mesurent 1200×800 pixels. Les bulles montrent la première photo
+de l'étape, ou son numéro si elle n'a pas de photo. Pour chaque carte avec bulles,
+un fichier `.inc` contient les boutons permettant de rejoindre les étapes.
+`satellite_trip.webp` utilise toujours un fond satellite Esri et des bulles ; elle nécessite
 un accès réseau pour les deux services. En cas d'échec, la carte
 principale reste disponible. Un voyage sans trace GPX valide n'a pas de carte de route.
 

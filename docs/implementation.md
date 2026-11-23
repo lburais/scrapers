@@ -4,7 +4,14 @@ This guide documents the current CLI, scraping pipeline and output behavior.
 
 ## Entry Point and CLI
 
-The single CLI entry point is `scrapers.py`, dispatching to five subcommands.
+The single CLI entry point is `scrapers.py`.
+
+`scrapers aventures profiles.json [--output DIR] [--content DIR] [--force] [--skip]`
+scrapes FindPenguins and then Polarsteps, then converts each archive with its
+service category. It uses `findpenguins` and `polarsteps` subdirectories under
+both `--output` (default `output`) and `--content` (default
+`../website/content/articles`). Both services must be present in the profile file.
+`--force` and `--skip` are passed to both scrapers.
 
 After installation, use `scrapers findpenguins profiles.json [--output DIR] [-t SLUG] [--force] [--skip]`
 or `scrapers polarsteps profiles.json [--output DIR] [-t SLUG] [--force] [--skip]`, followed by
@@ -36,7 +43,8 @@ An optional `settings` entry configures the rest:
 | `small_size` | Max side in px of profile/companion pictures (stored in place of the original); default `128`. |
 | `large_size` | Max side in px of maps, the trip cover and `_thumb` photos; default `1600`. |
 | `map_background` | Main route-map background: `transparent` (default), `satellite`, or `street`. |
-| `footprint_bubbles` | Draw numbered footprint locations on the main route map; default `false`. |
+| `footprint_bubbles` | Draw footprint bubbles on the main route map; default `false`. |
+| `footprint_bubble_size` | Bubble diameter in original map pixels; integer 1–799, default `48`. |
 
 Image size settings are recorded in both services' profile manifests for the converter.
 
@@ -132,13 +140,16 @@ site can build its own index from trip pages using the configured `--category` a
 (`Date`, `EndDate`, `Transport`).
 The `TripMap` is generated as `map_trip.webp` from the GPX track after the GPX is finalized.
 The separate `TripSatelliteMap` is generated as `satellite_trip.webp`, always with an Esri
-satellite background and numbered footprint bubbles. Each map is generated independently;
+satellite background and footprint bubbles. Each map is generated independently;
 a satellite request failure is reported without discarding the main map.
 
 Trip maps are 1200×800 WebP images with a white 4px route line. Their background defaults to transparent;
 `map_background: satellite` or `street` requests an Esri map image. These backgrounds require
 network access. Footprint bubbles are omitted by default and enabled with
-`footprint_bubbles`. When no valid route exists, no map is generated.
+`footprint_bubbles`. Bubbles display the first footprint photo, or the step number
+when no photo is available. A matching `.inc` file contains positioned HTML buttons
+for linking each bubble to its footprint section; the converter copies it beside
+the map. When no valid route exists, no map is generated.
 
 Trip RST metadata retains values used by an index (including period, duration, distance,
 countries, description, cover, route map and companions). It has no body sections for insights or

@@ -8,6 +8,7 @@ DEFAULT_SETTINGS = {
     "large_size": 1600,
     "map_background": "transparent",
     "footprint_bubbles": False,
+    "footprint_bubble_size": 48,
 }
 
 

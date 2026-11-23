@@ -177,7 +177,7 @@ module-private helpers. Docstrings in the source provide further details.
 | `build_user_xml(user_data, trips)` | Build the per-profile XML index. |
 | `build_merged_xml(profiles_data)` | Build the XML index merging several profiles. |
 | `_mercator_coordinates(lon, lat)` | Project to Web Mercator meters. |
-| `save_trip_route_map(gpx_path, footprints, output_image, background="transparent", show_footprint_bubbles=False)` | Render the 1200×800 route map. |
+| `save_trip_route_map(gpx_path, footprints, output_image, background="transparent", show_footprint_bubbles=False, footprint_bubble_size=48)` | Render the 1200×800 route map and optional clickable bubble overlay. |
 
 ## `aventures_writers.py` — Pelican articles and country maps
 

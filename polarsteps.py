@@ -127,6 +127,7 @@ def scrape(username, output="output", trip_slug=None, skip=False, credentials=No
                     route_map = save_trip_route_map(
                         str(gpx), trip["footprints"], str(trip_dir / filename),
                         background=background, show_footprint_bubbles=bubbles,
+                        footprint_bubble_size=settings["footprint_bubble_size"],
                     )
                     if route_map:
                         trip[key] = os.path.relpath(route_map, profile_dir)

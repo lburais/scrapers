@@ -1,6 +1,7 @@
 """Shared GPX and XML writers and route maps."""
 
 from datetime import date
+from html import escape
 from io import BytesIO
 import os
 import requests
@@ -447,17 +448,21 @@ def save_trip_route_map(
     output_image,
     background="transparent",
     show_footprint_bubbles=False,
+    footprint_bubble_size=48,
 ):
     """! @brief Save a route map with an optional background and footprint bubbles.
     @param gpx_path GPX containing the trip route track.
     @param footprints Footprints to mark on the map.
     @param output_image Destination image path.
     @param background Map background: transparent, satellite, or street.
-    @param show_footprint_bubbles Whether to draw numbered footprint markers.
+    @param show_footprint_bubbles Whether to draw footprint markers and create an HTML overlay.
+    @param footprint_bubble_size Marker diameter in pixels on the original map.
     @return Destination image path, or None when no route track/footprints exist.
     """
     import matplotlib.image as mpimg
     import matplotlib.pyplot as plt
+    from matplotlib import font_manager
+    from PIL import Image, ImageDraw, ImageFont, ImageOps
 
     if background not in {"transparent", "satellite", "street"}:
         raise ValueError(
@@ -465,6 +470,8 @@ def save_trip_route_map(
         )
     if os.path.splitext(output_image)[1].lower() != ".png":
         raise ValueError("trip route maps must be saved as PNG images")
+    if isinstance(footprint_bubble_size, bool) or not isinstance(footprint_bubble_size, int) or not 1 <= footprint_bubble_size < 800:
+        raise ValueError("footprint_bubble_size must be an integer from 1 to 799")
 
     if not os.path.isfile(gpx_path):
         print(f"  - WARNING: route map skipped; GPX file not found: {gpx_path}")
@@ -498,11 +505,11 @@ def save_trip_route_map(
         except (TypeError, ValueError):
             continue
         if isfinite(lat) and isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180:
-            footprint_points.append((index, lon, lat))
+            footprint_points.append((index, lon, lat, footprint))
 
     all_points = [point for segment in track_segments for point in segment]
     if show_footprint_bubbles:
-        all_points.extend((lon, lat) for _, lon, lat in footprint_points)
+        all_points.extend((lon, lat) for _, lon, lat, _ in footprint_points)
     projected = [_mercator_coordinates(lon, lat) for lon, lat in all_points]
     xs, ys = zip(*projected)
     xmin, xmax = min(xs), max(xs)
@@ -525,6 +532,12 @@ def save_trip_route_map(
         extra_height = (xmax - xmin) / target_aspect - (ymax - ymin)
         ymin -= extra_height / 2
         ymax += extra_height / 2
+    if show_footprint_bubbles and footprint_points:
+        scale = image_height / (image_height - footprint_bubble_size)
+        center_x, center_y = (xmin + xmax) / 2, (ymin + ymax) / 2
+        half_width, half_height = (xmax - xmin) * scale / 2, (ymax - ymin) * scale / 2
+        xmin, xmax = center_x - half_width, center_x + half_width
+        ymin, ymax = center_y - half_height, center_y + half_height
 
     map_image = None
     if background != "transparent":
@@ -566,30 +579,6 @@ def save_trip_route_map(
             route_x, route_y = zip(*(_mercator_coordinates(lon, lat) for lon, lat in segment))
             ax.plot(route_x, route_y, color="white", linewidth=4, zorder=3)
 
-        if show_footprint_bubbles:
-            for number, lon, lat in footprint_points:
-                x, y = _mercator_coordinates(lon, lat)
-                ax.scatter(
-                    x,
-                    y,
-                    s=260,
-                    marker="o",
-                    facecolor="#f8fbff",
-                    edgecolor="#073b70",
-                    linewidth=2.5,
-                    zorder=4,
-                )
-                ax.annotate(
-                    str(number),
-                    (x, y),
-                    ha="center",
-                    va="center",
-                    color="#073b70",
-                    fontsize=8,
-                    fontweight="bold",
-                    zorder=5,
-                )
-
         if background != "transparent":
             attribution = (
                 "Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community"
@@ -627,6 +616,45 @@ def save_trip_route_map(
         )
     finally:
         plt.close(fig)
+
+    overlay_path = os.path.splitext(output_image)[0] + ".inc"
+    if show_footprint_bubbles:
+        markers = []
+        with Image.open(output_image) as rendered:
+            image = rendered.convert("RGBA")
+        for number, lon, lat, footprint in footprint_points:
+            x, y = _mercator_coordinates(lon, lat)
+            pixel_x = (x - xmin) / (xmax - xmin) * image_width
+            pixel_y = (ymax - y) / (ymax - ymin) * image_height
+            size = footprint_bubble_size
+            marker = Image.new("RGBA", (size, size), "#f8fbff")
+            photos = footprint.get("photos") or []
+            if photos:
+                try:
+                    with Image.open(photos[0]) as photo:
+                        marker = ImageOps.fit(ImageOps.exif_transpose(photo).convert("RGBA"), (size, size))
+                except (OSError, ValueError) as exc:
+                    print(f"  - WARNING: unable to load footprint photo {photos[0]}: {exc}")
+                    photos = []
+            draw = ImageDraw.Draw(marker)
+            if not photos:
+                font = ImageFont.truetype(font_manager.findfont("DejaVu Sans"), max(1, size // 2))
+                draw.text((size / 2, size / 2), str(number), fill="#073b70", font=font, anchor="mm")
+            draw.ellipse((0, 0, size - 1, size - 1), outline="#073b70", width=max(1, size // 24))
+            mask = Image.new("L", (size, size), 0)
+            ImageDraw.Draw(mask).ellipse((0, 0, size - 1, size - 1), fill=255)
+            image.paste(marker, (round(pixel_x - size / 2), round(pixel_y - size / 2)), mask)
+            title = escape(str(footprint.get("title") or f"Étape {number}"), quote=True)
+            markers.append(
+                f'<button type="button" class="trip-map-bubble" data-footprint-index="{number}" '
+                f'aria-label="{title}" style="left:{pixel_x / image_width * 100:.6f}%;'
+                f'top:{pixel_y / image_height * 100:.6f}%;width:{size / image_width * 100:.6f}%"></button>'
+            )
+        image.save(output_image)
+        with open(overlay_path, "w", encoding="utf-8") as overlay:
+            overlay.write("\n".join(markers) + ("\n" if markers else ""))
+    elif os.path.isfile(overlay_path):
+        os.remove(overlay_path)
 
     stale_marker_path = os.path.splitext(output_image)[0] + ".json"
     if os.path.isfile(stale_marker_path):
