@@ -16,14 +16,14 @@ module-private helpers. Docstrings in the source provide further details.
 | `resolve_trip_flags(trip, footprints, country_codes)` | Resolve FindPenguins flags from the shared FlagCDN cache and store archive-relative paths. |
 | `process_profile(profile_id, username, password, settings)` | End-to-end scrape of one profile: login, trips, footprints, GPX, maps, XML and manifests. |
 | `load_profiles(profiles_file)` | Read the profiles JSON file and split profiles from the optional `settings` entry. |
-| `scrapper(profiles_file, output, trip=None, force=False, skip=False)` | Scrape all profiles into the archive without generating Pelican articles. |
+| `scrapper(profiles_file, output, trip=None, force=False, skip=False, update=False)` | Scrape all profiles into the archive without generating Pelican articles. |
 
 ## `polarsteps.py` — Polarsteps scraper
 
 | Function | Purpose |
 |---|---|
-| `scrape(username, output="output", trip_slug=None, skip=False, credentials=None, sizes=None)` | Archive a profile via the API or saved snapshots. |
-| `scrape_profiles(profiles_file, output="output", trip_slug=None, skip=False, force=False)` | Archive Polarsteps accounts from a shared profiles file; force clears the archive or selected trips unless skip is enabled. |
+| `scrape(username, output="output", trip_slug=None, skip=False, credentials=None, sizes=None, update=False)` | Archive a profile via the API or saved snapshots, optionally processing only modified trips. |
+| `scrape_profiles(profiles_file, output="output", trip_slug=None, skip=False, force=False, update=False)` | Archive Polarsteps accounts; skip and update disable force. |
 
 ## `polarsteps_config.py` — Polarsteps configuration
 
@@ -42,7 +42,7 @@ module-private helpers. Docstrings in the source provide further details.
 | `api_get(session, endpoint)` | Fetch one Polarsteps API object. |
 | `source_data(path, skip, fetch)` | Save an API response or load an existing snapshot. |
 | `_require_list(data, *names)` | Validate a required API list. |
-| `media_url(value)` / `download_media(item, directory, stem, kind, skip)` | Resolve and archive media, with explicit thumbnail fallback for photos. |
+| `media_url(value)` / `download_media(item, directory, stem, kind, skip, refresh=False)` | Resolve and archive media, with explicit thumbnail fallback for photos. |
 
 ## `polarsteps_parsers.py` — Polarsteps data parsing
 
@@ -54,7 +54,7 @@ module-private helpers. Docstrings in the source provide further details.
 | `seed_gpx(path, source)` | Create mode-tagged GPX tracks from encoded route segments, falling back to tracker points. |
 | `transport_distances_from_gpx(path, transports)` | Fill integer kilometer distances from GPX tracks grouped by their `transport_mode` extension. |
 | `weather_icon(condition)` | Convert known weather codes to icons; warn and preserve unknown values. |
-| `normalize_trip(source, username, slug, profile_dir, skip, country_codes=None)` | Map a trip and its steps to the shared archive schema. |
+| `normalize_trip(source, username, slug, profile_dir, skip, country_codes=None, refresh=False)` | Map a trip and its steps to the shared archive schema. |
 
 ## `common_profiles.py` — shared profile loading
 
@@ -68,7 +68,7 @@ module-private helpers. Docstrings in the source provide further details.
 
 | Function | Purpose |
 |---|---|
-| `convert(output, content, trip_slug=None, category="findpenguins")` | Rebuild trip and footprint RST articles from manifests, using the category as the trip category and first service tag. |
+| `convert(output, content, trip_slug=None, category="findpenguins", update=False)` | Rebuild trip and footprint RST articles from manifests, optionally only when changed. |
 
 ## `reminder.py` / `reminders2rst.py` — Apple Reminders
 
@@ -91,8 +91,8 @@ module-private helpers. Docstrings in the source provide further details.
 | Function | Purpose |
 |---|---|
 | `_write_json(path, value)` | Atomic JSON write (temporary file then rename). |
-| `write_profile(profile_dir, user, settings)` | Write `profile.json` (user and image sizes). |
-| `write_trip(output, trip_dir, trip)` | Write `trip.json` with media paths relative to the archive; rejects media outside it. |
+| `write_profile(profile_dir, user, settings, only_if_changed=False)` | Write `profile.json` (user and image sizes). |
+| `write_trip(output, trip_dir, trip, *, source_last_modified=None)` | Write `trip.json` with media paths relative to the archive and optional source timestamp; rejects media outside it. |
 
 ## `aventures_archive.py` — portable JSON manifest reading
 

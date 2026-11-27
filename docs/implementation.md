@@ -6,12 +6,13 @@ This guide documents the current CLI, scraping pipeline and output behavior.
 
 The single CLI entry point is `scrapers.py`.
 
-`scrapers aventures profiles.json [--output DIR] [--content DIR] [--force] [--skip]`
+`scrapers aventures profiles.json [--output DIR] [--content DIR] [--force] [--skip | --update]`
 scrapes FindPenguins and then Polarsteps, then converts each archive with its
 service category. It uses `findpenguins` and `polarsteps` subdirectories under
 both `--output` (default `output`) and `--content` (default
 `../website/content/articles`). Both services must be present in the profile file.
-`--force` and `--skip` are passed to both scrapers.
+`--force`, `--skip` and `--update` are passed to both scrapers. Update mode also
+converts only changed or missing trip articles.
 
 After installation, use `scrapers findpenguins profiles.json [--output DIR] [-t SLUG] [--force] [--skip]`
 or `scrapers polarsteps profiles.json [--output DIR] [-t SLUG] [--force] [--skip]`, followed by
@@ -27,6 +28,17 @@ the converter's `--content` (default `../website/content/articles/findpenguins`)
 and footprint popup data are saved by FindPenguins. `--force` clears the entire output directory,
 including any other services' data (or only the selected trip's folder and GPX for each profile
 when `--trip` is given). The content directory is not cleared.
+
+`--update` disables `--force` and cannot be combined with `--skip`. Polarsteps
+fetches each live trip detail and compares its timezone-aware `last_modified`
+with the last successfully archived trip. Missing or invalid timestamps and
+missing archived media or GPX trigger a rescrape. Older archives can use their saved
+trip snapshot as a baseline only when it predates the trip manifest. Modified
+trip media are refreshed. FindPenguins has no reliable modification timestamp
+in its current trip listing, so it warns and rescrapes all selected trips.
+The converter's `--update` rebuilds missing articles and reacts to changed
+trip/profile manifests or categories. A hidden `.aventures-conversion.json`
+records successful conversions; trips without it are converted once.
 
 For FindPenguins, `--skip` reads previously saved profile, trip, footprint and insights HTML instead of
 navigating, and overrides `--force`. Run a scrape first to save snapshots;

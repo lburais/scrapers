@@ -145,12 +145,15 @@ def media_url(value):
     return url
 
 
-def download_media(item, directory, stem, kind, skip):
+def download_media(item, directory, stem, kind, skip, refresh=False):
     """Reuse or download a photo/video, warning when a photo uses a thumbnail.
 
     Photos are written as lossless WebP. Skip mode requires the media to have
-    been archived already; unavailable videos and failed downloads raise errors.
+    been archived already; refresh replaces existing media after a successful download.
+    Unavailable videos and failed downloads raise errors.
     """
+    if skip and refresh:
+        raise ValueError("Cannot refresh media in skip mode")
     directory = Path(directory)
     original = item.get("path") or item.get("cdn_path")
     suffix = Path(urlsplit(original or "").path).suffix.lower()
@@ -161,7 +164,7 @@ def download_media(item, directory, stem, kind, skip):
     destination = directory / (stem + suffix)
     if destination.is_symlink():
         raise ValueError(f"Refusing symbolic-link media file: {destination}")
-    if destination.is_file():
+    if destination.is_file() and not refresh:
         return str(destination)
     if skip:
         raise FileNotFoundError(f"Missing archived media: {destination}")
@@ -181,6 +184,7 @@ def download_media(item, directory, stem, kind, skip):
     for candidate, thumbnail in candidates:
         url = media_url(candidate)
         temporary = None
+        image_temporary = None
         try:
             with requests.get(url, stream=True, timeout=60) as response:
                 response.raise_for_status()
@@ -191,7 +195,11 @@ def download_media(item, directory, stem, kind, skip):
                             handle.write(chunk)
             if kind == "photo":
                 with Image.open(temporary) as image:
-                    image.save(destination, "WEBP", lossless=True, quality=100, method=4)
+                    with tempfile.NamedTemporaryFile(dir=directory, prefix=".media-image-", delete=False) as handle:
+                        image_temporary = Path(handle.name)
+                        image.save(handle, "WEBP", lossless=True, quality=100, method=4)
+                os.replace(image_temporary, destination)
+                image_temporary = None
             else:
                 os.replace(temporary, destination)
                 temporary = None
@@ -203,4 +211,6 @@ def download_media(item, directory, stem, kind, skip):
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
+            if image_temporary is not None:
+                image_temporary.unlink(missing_ok=True)
     raise RuntimeError(f"Unable to download {kind} {stem}") from failure

@@ -258,6 +258,8 @@ FindPenguins; trip distance and footprint temperature are rounded to whole numbe
 stringification. A footprint's `altitude` is the nearest track point's elevation rounded to whole
 meters, or an empty string when unavailable, and matches the GPX waypoint elevation. Polarsteps
 GPX elevation values are also rounded to whole meters. The manifest's `version` remains the number `1`.
+When available, the manifest's top-level `source_last_modified` records the timestamp
+of the successfully archived Polarsteps trip for update checks.
 Known `weather_condition` codes are converted to weather emoji; unrecognized codes are
 preserved with a warning. Raw API snapshots retain the original codes.
 

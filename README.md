@@ -146,10 +146,10 @@ l'emplacement de l'exécutable.
 ## ⚙️ Utilisation
 
 ```bash
-scrapers aventures profiles.json [--output DIR] [--content DIR] [--force] [--skip]
-scrapers findpenguins profiles.json [--output DIR] [-t SLUG] [--force] [--skip]
-scrapers polarsteps profiles.json [--output DIR] [-t SLUG] [--force] [--skip]
-scrapers aventures2rst --output DIR [--content DIR] [-t SLUG] [--category CATEGORY]
+scrapers aventures profiles.json [--output DIR] [--content DIR] [--force] [--skip | --update]
+scrapers findpenguins profiles.json [--output DIR] [-t SLUG] [--force] [--skip | --update]
+scrapers polarsteps profiles.json [--output DIR] [-t SLUG] [--force] [--skip | --update]
+scrapers aventures2rst --output DIR [--content DIR] [-t SLUG] [--category CATEGORY] [--update]
 ```
 
 - `profiles.json` : fichier de profils (obligatoire).
@@ -159,12 +159,13 @@ scrapers aventures2rst --output DIR [--content DIR] [-t SLUG] [--category CATEGO
 - `-t`, `--trip` : ne scraper que le voyage portant ce slug (défaut : tous).
 - `--force` : vider entièrement `--output` avant de scraper, y compris les archives d'autres services qui s'y trouvent. Avec `--trip`, seuls le dossier et le GPX de ce voyage sont supprimés pour chaque profil. Les articles Pelican ne sont pas supprimés.
 - `--skip` : utiliser les captures enregistrées ; désactive `--force` s'il est aussi fourni.
+- `--update` : désactive `--force` et traite les voyages Polarsteps nouveaux ou modifiés selon `last_modified`. Chaque voyage est interrogé sur l'API ; si la date ou l'archive est insuffisante, il est retraité. FindPenguins est toujours rescrapé avec un avertissement, faute de date de modification fiable. Pour la conversion, seuls les articles modifiés ou manquants sont régénérés ; les voyages sans fichier de suivi `.aventures-conversion.json` sont convertis une première fois. `--skip` et `--update` sont incompatibles.
 
 `aventures` collecte d'abord FindPenguins puis Polarsteps, puis convertit les deux
 archives. Les archives sont rangées sous `output/findpenguins` et
 `output/polarsteps`, et les articles sous `../website/content/articles/findpenguins`
 et `../website/content/articles/polarsteps` par défaut. `--output` et `--content`
-remplacent leurs dossiers parents ; `--force` et `--skip` s'appliquent aux deux
+remplacent leurs dossiers parents ; `--force`, `--skip` et `--update` s'appliquent aux deux
 services. Les deux services doivent être présents dans le fichier de profils.
 
 ### FindPenguins

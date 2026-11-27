@@ -235,7 +235,7 @@ def _round_integer(value):
     return int(round(float(value)))
 
 
-def _trip_companions(source, profile_dir, skip):
+def _trip_companions(source, profile_dir, skip, refresh=False):
     """Return the trip owner followed by the trip's buddies."""
     buddies = source.get("trip_buddies") or []
     if not isinstance(buddies, list):
@@ -272,17 +272,17 @@ def _trip_companions(source, profile_dir, skip):
                     "path": person.get("profile_image_path"),
                     "large_thumbnail_path": person.get("profile_image_thumb_path"),
                 },
-                profile_dir, f"companion-{uid}", "photo", skip,
+                profile_dir, f"companion-{uid}", "photo", skip, refresh=refresh,
             )
             companion["picture"] = os.path.relpath(avatar, profile_dir)
         companions.append(companion)
     return companions
 
 
-def normalize_trip(source, username, slug, profile_dir, skip, country_codes=None):
+def normalize_trip(source, username, slug, profile_dir, skip, country_codes=None, refresh=False):
     """Map API trip and type-1 step data into the shared archive schema, downloading media.
 
-    Skip mode requires the media to have been archived already.
+    Skip mode requires archived media; refresh downloads existing trip media again.
     """
     trip_dir = profile_dir / slug
     trip_dir.mkdir(parents=True, exist_ok=True)
@@ -297,7 +297,7 @@ def normalize_trip(source, username, slug, profile_dir, skip, country_codes=None
         "countries": [], "transports": [], "companions": [], "footprints": [],
         "gpx": slug + ".gpx",
     }
-    trip["companions"] = _trip_companions(source, profile_dir, skip)
+    trip["companions"] = _trip_companions(source, profile_dir, skip, refresh=refresh)
     if start and end:
         trip["days"] = (datetime.fromisoformat(end) - datetime.fromisoformat(start)).days + 1
     cover = source.get("cover_photo") or {}
@@ -306,7 +306,9 @@ def normalize_trip(source, username, slug, profile_dir, skip, country_codes=None
     if not cover and source.get("cover_photo_path"):
         cover = {"path": source["cover_photo_path"], "large_thumbnail_path": source.get("cover_photo_thumb_path")}
     if cover:
-        trip["image"] = os.path.relpath(download_media(cover, trip_dir, "cover_trip", "photo", skip), profile_dir)
+        trip["image"] = os.path.relpath(
+            download_media(cover, trip_dir, "cover_trip", "photo", skip, refresh=refresh), profile_dir
+        )
     countries = set()
     for step in _require_list(source, "all_steps", "steps"):
         if step.get("is_deleted") or step.get("type") != 1:
@@ -349,7 +351,7 @@ def normalize_trip(source, username, slug, profile_dir, skip, country_codes=None
             if media_type not in (0, 1):
                 raise ValueError(f"Unknown Polarsteps media type {media_type!r} in step {step_id}")
             kind = "photo" if media_type == 0 else "video"
-            path = download_media(media, trip_dir, f"step-{step_id}-{media_id}", kind, skip)
+            path = download_media(media, trip_dir, f"step-{step_id}-{media_id}", kind, skip, refresh=refresh)
             footprint["photos" if kind == "photo" else "videos"].append(path)
         trip["footprints"].append(footprint)
     modes = []

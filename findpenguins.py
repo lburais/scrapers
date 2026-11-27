@@ -211,12 +211,16 @@ def load_profiles(profiles_file):
     return profiles, {**DEFAULT_SETTINGS, **settings}
 
 
-def scrapper(profiles_file, output, trip=None, force=False, skip=False):
+def scrapper(profiles_file, output, trip=None, force=False, skip=False, update=False):
     """Scrape profiles into the archive without generating Pelican articles."""
+    if skip and update:
+        raise ValueError("--skip and --update cannot be used together")
     profiles, settings = load_profiles(profiles_file)
-    if force and skip:
-        print("  --skip disables --force to preserve saved snapshots")
-    if force and not skip:
+    if update:
+        print("  WARNING: FindPenguins has no reliable update timestamp; scraping all selected trips")
+    if force and (skip or update):
+        print(f"  --{'skip' if skip else 'update'} disables --force to preserve saved snapshots")
+    if force and not (skip or update):
         clear_folders(output, profiles, trip)
     settings.update(output=output, trip=trip, skip=skip)
 

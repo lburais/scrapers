@@ -23,25 +23,33 @@ def _write_json(path, value):
             os.remove(temporary)
 
 
-def write_profile(profile_dir, user, settings):
+def write_profile(profile_dir, user, settings, only_if_changed=False):
     """! @brief Write `profile.json` (version 1) with the user and image sizes.
     @param profile_dir Profile directory in the archive.
     @param user User dictionary as returned by the profile parser.
     @param settings Run settings providing `small_size` and `large_size`.
+    @param only_if_changed Preserve the existing manifest when its content is unchanged.
     @return None
     """
-    _write_json(os.path.join(profile_dir, "profile.json"), {
+    path = os.path.join(profile_dir, "profile.json")
+    data = {
         "version": 1,
         "user": user,
         "sizes": {"small": settings["small_size"], "large": settings["large_size"]},
-    })
+    }
+    if only_if_changed and os.path.isfile(path):
+        with open(path, encoding="utf-8") as handle:
+            if json.load(handle) == data:
+                return
+    _write_json(path, data)
 
 
-def write_trip(output, trip_dir, trip):
+def write_trip(output, trip_dir, trip, *, source_last_modified=None):
     """! @brief Write `trip.json` with media paths made relative to the archive root.
     @param output Archive root directory.
     @param trip_dir Trip directory receiving the manifest.
     @param trip Trip dictionary; it is deep-copied, the argument is not modified.
+    @param source_last_modified Optional timestamp of the successfully archived source trip.
     @return None
     @throws ValueError When a photo, video, GPX or PDF path lies outside the archive.
     """
@@ -56,6 +64,9 @@ def write_trip(output, trip_dir, trip):
                     raise ValueError(f"Media outside archive: {path}")
                 paths.append(os.path.relpath(absolute, root))
             footprint[field] = paths
-    _write_json(os.path.join(trip_dir, "trip.json"), {"version": 1, "trip": portable})
+    manifest = {"version": 1, "trip": portable}
+    if source_last_modified is not None:
+        manifest["source_last_modified"] = source_last_modified
+    _write_json(os.path.join(trip_dir, "trip.json"), manifest)
 
 
